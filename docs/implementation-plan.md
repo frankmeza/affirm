@@ -9,7 +9,7 @@ The library is split **by kind of value being checked**, the same groups as §5.
 | Level   | What a group owns                                                                 | Combined into                     |
 | ------- | --------------------------------------------------------------------------------- | --------------------------------- |
 | Runtime | a `CheckGroup` object: `{ [key]: CheckDef }` (param validation, test, describe)   | `checks` registry (one object)    |
-| Types   | a `XParams` interface (with JSDoc), `XNarrow<P>` and `XExact<P>` type functions   | `AffirmParams`, `Affirmed<V, P>`  |
+| Types   | a `XParams` interface (with JSDoc) and an `XInfos<P>` tuple (narrowing + exactness)| `AffirmParams`, `Affirmed<V, P>`  |
 
 The core engine knows nothing about specific keys. It only iterates the combined registry. Adding a key means touching exactly one group's runtime file and one group's types file.
 
@@ -51,7 +51,7 @@ src/
     composition.ts             not, anyOf, satisfies
 
   types/                       type level, mirrors checks/ one-to-one
-    equality.ts                EqualityParams, EqualityNarrow<P>, EqualityExact<P>
+    equality.ts                EqualityParams, EqualityInfos<P>
     nullish.ts                 …
     runtime-type.ts
     size.ts
@@ -61,13 +61,13 @@ src/
     arrays.ts
     composition.ts
     params.ts                  AffirmParams = combined interface
-    affirmed.ts                Affirmed<V, P>, Refined brand, Simplify
-    contradictions.ts          NoContradictions<P> (§6.4)
-    affirm-interface.ts        the `Affirm` call-signature interface (§6.1)
+    affirmed.ts                Affirmed<V, P>, Narrow<P>, IsExact<P>
+    narrowing.ts               Refined brand, KeyInfo helpers (Skip, Exact, Refine, BoolInfo, …)
+    contradictions.ts          NoUnknownKeys<P>, NoContradictions<P> (§6.4, M5), ParamsCheck<P>
 
 test/
   runtime/<group>.test.ts      one per group + engine/report/error tests
-  types/<group>.test-d.ts      narrowing tests per group + asserted.test-d.ts (M2 gate)
+  types/<group>.test-d.ts      narrowing tests per group + narrowing.test-d.ts (M2 gate)
 ```
 
 ## 3. Runtime: the per-group contract
@@ -145,21 +145,26 @@ export interface AffirmParams
 
 `interface … extends` (not `&`) gives better hover output and errors on conflicting key types between groups.
 
-Narrowing is combined the same way:
+Narrowing is combined the same way (as built in M2). Each key contributes one `KeyInfo`: `{ n: <narrows to>, e: <exact?> }`. Each group exports a tuple of them, built with the helpers in `types/narrowing.ts` (`Skip`, `Exact<N>`, `Refine<N>`, `BoolInfo`, `ParamInfo`):
 
 ```ts
-// types/affirmed.ts
-type Narrow<P> = EqualityNarrow<P> & NullishNarrow<P> & RuntimeTypeNarrow<P> & SizeNarrow<P>
-               & NumberNarrow<P> & StringNarrow<P> & ObjectNarrow<P> & ArrayNarrow<P> & CompositionNarrow<P>
+// types/nullish.ts
+export type NullishInfos<P> = [
+  BoolInfo<ParamOf<P, 'isNull'>, Exact<null>, Exact<{} | undefined>>,
+  …
+]
 
-type IsExact<P> = /* true iff every present key is exact per its group's XExact<P> (§6.3) */
+// types/affirmed.ts
+type AllInfos<P> = [...EqualityInfos<P>, ...NullishInfos<P>, ...RuntimeTypeInfos<P> /*, M3/M4 groups */]
+export type Narrow<P>  = NarrowOf<AllInfos<P>>   // intersection of every n
+export type IsExact<P> = ExactOf<AllInfos<P>>    // true iff every e is true
 
 export type Affirmed<V, P> = IsExact<P> extends true
-  ? Simplify<V & Narrow<P>>
-  : Simplify<V & Narrow<P>> & Refined
+  ? NarrowTo<V, Narrow<P>>
+  : NarrowTo<V, Narrow<P>> & Refined
 ```
 
-Each `XNarrow<P>` returns `unknown` for keys it doesn't own, so the intersection is neutral. Each `XExact<P>` returns `true` when none of its keys are present. Recursive keys (`shape`, `everyItem`, `someItem`, `anyOf`, `not`) import `Affirmed` from `affirmed.ts` — the one intentional cycle, type-only.
+`NarrowTo` mirrors TypeScript's own union narrowing instead of `V & N` (see design §6.3 outcome). An absent or `undefined` key is `Skip` (`n: unknown`, `e: true`), so it changes nothing. Adding a group in M3/M4 means adding one `XInfos<P>` tuple and spreading it into `AllInfos`. Recursive keys (`shape`, `everyItem`, `someItem`, `anyOf`, `not`) import `Affirmed` from `affirmed.ts` — the one intentional cycle, type-only.
 
 ## 6. Combining: the exported `affirm` object
 
@@ -186,7 +191,7 @@ export { affirm } from './affirm'
 export { AffirmError } from './core/errors'
 export type { AffirmParams } from './types/params'
 export type { AffirmReport, AffirmFailure } from './core/report'
-export type { Affirmed } from './types/asserted'
+export type { Affirmed } from './types/affirmed'
 ```
 
 ## 7. Milestones
@@ -195,7 +200,7 @@ export type { Affirmed } from './types/asserted'
 | -- | ----- | --------- |
 | M0 ✅ | Vite scaffold turned into a library: template files deleted; `vite build` lib mode (ESM) + `tsc -p tsconfig.build.json` for `.d.ts`; vitest with typecheck for `test/**/*.test-d.ts`; tsconfig `strict` + `noUncheckedIndexedAccess`, no DOM/vite types. Smoke tests in `test/smoke.*` (delete in M1). | `pnpm build` emits `dist/index.js` + `dist/index.d.ts`; `pnpm test` runs runtime + type tests |
 | M1 ✅ | `core/*` engine + `equality`, `nullish`, `runtime-type` groups (runtime only). `validate-params` with levenshtein suggestion. | runtime tests for those groups, rule 3–6 tests, canonical order test |
-| M2 | **Type spike / gate (§6.3).** `types/` for M1 groups, `Refined` brand, `Affirmed`, `Affirm` interface. Tests (a)–(e). | All five pass on the installed TS (`~7.0`), or fallback chosen and recorded in design §6.3 |
+| M2 ✅ | **Type spike / gate (§6.3).** `types/` for M1 groups, `Refined` brand, `Affirmed`, `Affirm` interface. Tests (a)–(e). | All five pass on the installed TS (`~7.0`), or fallback chosen and recorded in design §6.3 |
 | M3 | Remaining leaf groups: `size`, `numbers`, `strings`, `objects` (minus `shape`), `arrays` (minus `everyItem`/`someItem`) — runtime + types per group. | per-group runtime + type tests |
 | M4 | Composites: `shape`, `everyItem`, `someItem`, `not`, `anyOf` (with `branches`), `satisfies`; `deep-equal`; `explain` report paths (`user.address.zip`, `items[2].id`); `AffirmError` message. | report snapshot tests; no raw values in any `received` |
 | M5 | Standard Schema in `isType` (§10), async → `TypeError`. `NoContradictions<P>` (§6.4). | tests with a hand-rolled sync + async Standard Schema object (no Zod dep) |

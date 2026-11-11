@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { affirm } from '../../src'
+import { affirm, type AffirmParams } from '../../src'
 
 const OBJ = {}
 const ARR: unknown[] = []
@@ -19,9 +19,9 @@ const TABLE: [string, readonly unknown[]][] = [
 describe.each(TABLE)('%s', (key, passing) => {
   test.each(VALUES.map((v) => [v]))('value %o', (value) => {
     const shouldPass = passing.includes(value)
-    expect(affirm(value, { [key]: true })).toBe(shouldPass)
+    expect(affirm(value, { [key]: true } as AffirmParams)).toBe(shouldPass)
     // D1: `false` is the exact negation (no kind gate for nullish keys)
-    expect(affirm(value, { [key]: false })).toBe(!shouldPass)
+    expect(affirm(value, { [key]: false } as AffirmParams)).toBe(!shouldPass)
   })
 })
 

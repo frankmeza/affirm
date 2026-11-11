@@ -163,6 +163,8 @@ interface Affirm {
 
 `const P` preserves literal types so `is: 'admin'` narrows to `'admin'`, not `string`.
 
+As implemented, `NoContradictions<P>` is one part of `ParamsCheck<P> = NoUnknownKeys<P> & NoContradictions<P>`; the signature intersects P with `ParamsCheck<P>` (see the §6.3 outcome).
+
 ### 6.2 The soundness problem
 
 A TS type predicate narrows both branches. If `affirm(x, { isType: 'string', hasMinLength: 3 })` were typed `value is string`, then in the `else` branch TS would remove `string` from `x`'s type, even though `"ab"` lands there. That makes the library actively harmful.
@@ -181,6 +183,17 @@ A TS type predicate narrows both branches. If `affirm(x, { isType: 'string', has
 - `anyOf` is exact only if every branch is exact; `shape`, `everyItem`, `someItem`, `not`, `satisfies` are always refined.
 
 **Verify this early (implementation plan M2).** Type tests must prove: (a) the `if` branch narrows; (b) the `else` branch of a refined check keeps every constituent; (c) the `else` branch of an exact check excludes correctly; (d) branded values pass into functions expecting the unbranded type; (e) hovering an `Affirmed` type in an editor is readable (wrap in a `Simplify<>` where it helps). If the brand approach fails any of (a)–(d) on the current TypeScript, fall back to: refined combinations return plain `boolean` (no narrowing), exact-only combinations keep the predicate. Record the outcome in this section.
+
+**Outcome (M2, 2026-11-10, TypeScript 7.0.2): the brand approach passes (a)–(e); no fallback needed.** Tests: `test/types/narrowing.test-d.ts`, each checked to fail when its expectation is broken. Findings:
+
+- **`Affirmed<V, P>` filters V instead of intersecting it.** A plain `V & N` gives artefacts on unions: `string | string[]` with `isArray: true` would become `(string & readonly unknown[]) | string[]`. `Affirmed` copies TypeScript's own narrowing instead: keep the constituents of V that are subtypes of N, swap in N where N is narrower, and drop unrelated constituents. Only when nothing is related does it fall back to `V & N`. Result: `string[]`.
+- **`value is Affirmed<V, P>` compiles with a generic `V`** (no TS2677), and `affirm.assert` needs the explicit `const affirm: Affirm` annotation (TS2775 otherwise), as expected.
+- **The optional brand (`?: never`) is enough.** `{}` and `object` are *assignable* to it, but narrowing uses the strict subtype relation, so `else` branches keep those types too (tested).
+- **Gated boolean keys narrow to their kind in both polarities (D7):** `isInteger: false` → `number & Refined`.
+- **A non-literal param** (`isNull: someBoolean`, or a variable typed `AffirmParams`) narrows nothing: refined, with `n = unknown`.
+- **Hover output is readable without `Simplify`:** `string & Refined`, `Map<unknown, unknown> & Refined`, `'a' | 'b'`, `{ id: string }`. Revisit `Simplify` for object narrowing (`shape`, `hasKey`) in M3/M4.
+- **Unknown keys are compile errors** via `NoUnknownKeys<P>`, intersected next to `NoContradictions<P>` (see §6.1). Generic inference skips excess-property checks, so without it `{ isNull: true, isTypo: 1 }` would type-check. The editor shows `… '{ __affirmError: "unknown check 'isTypo'" }'`.
+- **Known cosmetic gap:** when nothing in V is related to N, the fallback `V & N` can show impossible members, e.g. `(string | typeof Foo) & AnyFunction` for `isFunction: true`. It is sound (the `else` branch keeps everything), just noisy.
 
 ### 6.4 Contradiction detection
 
