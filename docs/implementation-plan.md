@@ -194,12 +194,22 @@ export type { Affirmed } from './types/asserted'
 | #  | Scope | Done when |
 | -- | ----- | --------- |
 | M0 ✅ | Vite scaffold turned into a library: template files deleted; `vite build` lib mode (ESM) + `tsc -p tsconfig.build.json` for `.d.ts`; vitest with typecheck for `test/**/*.test-d.ts`; tsconfig `strict` + `noUncheckedIndexedAccess`, no DOM/vite types. Smoke tests in `test/smoke.*` (delete in M1). | `pnpm build` emits `dist/index.js` + `dist/index.d.ts`; `pnpm test` runs runtime + type tests |
-| M1 | `core/*` engine + `equality`, `nullish`, `runtime-type` groups (runtime only). `validate-params` with levenshtein suggestion. | runtime tests for those groups, rule 3–6 tests, canonical order test |
+| M1 ✅ | `core/*` engine + `equality`, `nullish`, `runtime-type` groups (runtime only). `validate-params` with levenshtein suggestion. | runtime tests for those groups, rule 3–6 tests, canonical order test |
 | M2 | **Type spike / gate (§6.3).** `types/` for M1 groups, `Refined` brand, `Affirmed`, `Affirm` interface. Tests (a)–(e). | All five pass on the installed TS (`~7.0`), or fallback chosen and recorded in design §6.3 |
 | M3 | Remaining leaf groups: `size`, `numbers`, `strings`, `objects` (minus `shape`), `arrays` (minus `everyItem`/`someItem`) — runtime + types per group. | per-group runtime + type tests |
 | M4 | Composites: `shape`, `everyItem`, `someItem`, `not`, `anyOf` (with `branches`), `satisfies`; `deep-equal`; `explain` report paths (`user.address.zip`, `items[2].id`); `AffirmError` message. | report snapshot tests; no raw values in any `received` |
 | M5 | Standard Schema in `isType` (§10), async → `TypeError`. `NoContradictions<P>` (§6.4). | tests with a hand-rolled sync + async Standard Schema object (no Zod dep) |
-| M6 | Docs contract (§11): JSDoc + `@example` on every key in each `types/<group>.ts`; write `AGENTS.md` (referenced by §11 but not in the repo yet). | a test that every `AffirmParams` key has JSDoc (scan the .ts source) |
+| M6 | Docs contract (§11): JSDoc + `@example` on every key in each `types/<group>.ts`; write `AGENTS.md` (referenced by §11 but not in the repo yet). JSDoc for `isFunction` and `isType: 'function'` must say classes pass and calling one without `new` throws. | a test that every `AffirmParams` key has JSDoc (scan the .ts source) |
+
+**M1 notes**
+- Pulled forward from M4 because M1 needed them: `deep-equal.ts` (for `isDeepEqual`), `AffirmError` and `affirm.assert`.
+- `affirm.ts` uses a provisional, non-narrowing `Affirm` interface; M2 replaces it with the §6.1 one.
+- `isType` rejects Standard Schema objects with a "not implemented yet (M5)" `TypeError`.
+- `EvalContext` carries `key`, so `CheckDef` doesn't need `accepts`/`acceptsLabel` fields; the kind gate lives in `leaf()`/`booleanLeaf()`.
+- Behaviour choices awaiting confirmation:
+  - Params whose keys are all `undefined` (e.g. `{ isNull: undefined }`) pass; only a literal `{}` throws.
+  - `expected` shows short param literals (`=== "admin"`, strings ≤ 32 chars); D5 is read as covering `received` (data), not params (code).
+  - An `isType` guard passes only when it returns exactly `true`.
 
 Within every milestone, work group-by-group: `types/<group>.ts` → `checks/<group>.ts` (`satisfies` keeps them in sync) → tests.
 
