@@ -1,10 +1,24 @@
+import type { ArrayInfos } from './arrays'
 import type { EqualityInfos } from './equality'
 import type { ExactOf, NarrowOf, Refined } from './narrowing'
 import type { NullishInfos } from './nullish'
+import type { NumberInfos } from './numbers'
+import type { ObjectInfos } from './objects'
 import type { RuntimeTypeInfos } from './runtime-type'
+import type { SizeInfos } from './size'
+import type { StringInfos } from './strings'
 
 /** Every group's key infos, concatenated. Groups are added as they land (M3, M4). */
-type AllInfos<P> = [...EqualityInfos<P>, ...NullishInfos<P>, ...RuntimeTypeInfos<P>]
+type AllInfos<P> = [
+  ...EqualityInfos<P>,
+  ...NullishInfos<P>,
+  ...RuntimeTypeInfos<P>,
+  ...SizeInfos<P>,
+  ...NumberInfos<P>,
+  ...StringInfos<P>,
+  ...ObjectInfos<P>,
+  ...ArrayInfos<P>,
+]
 
 /** What P narrows to on its own (before combining with the input type). */
 export type Narrow<P> = NarrowOf<AllInfos<P>>

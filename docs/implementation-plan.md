@@ -201,7 +201,7 @@ export type { Affirmed } from './types/affirmed'
 | M0 ✅ | Vite scaffold turned into a library: template files deleted; `vite build` lib mode (ESM) + `tsc -p tsconfig.build.json` for `.d.ts`; vitest with typecheck for `test/**/*.test-d.ts`; tsconfig `strict` + `noUncheckedIndexedAccess`, no DOM/vite types. Smoke tests in `test/smoke.*` (delete in M1). | `pnpm build` emits `dist/index.js` + `dist/index.d.ts`; `pnpm test` runs runtime + type tests |
 | M1 ✅ | `core/*` engine + `equality`, `nullish`, `runtime-type` groups (runtime only). `validate-params` with levenshtein suggestion. | runtime tests for those groups, rule 3–6 tests, canonical order test |
 | M2 ✅ | **Type spike / gate (§6.3).** `types/` for M1 groups, `Refined` brand, `Affirmed`, `Affirm` interface. Tests (a)–(e). | All five pass on the installed TS (`~7.0`), or fallback chosen and recorded in design §6.3 |
-| M3 | Remaining leaf groups: `size`, `numbers`, `strings`, `objects` (minus `shape`), `arrays` (minus `everyItem`/`someItem`) — runtime + types per group. | per-group runtime + type tests |
+| M3 ✅ | Remaining leaf groups: `size`, `numbers`, `strings`, `objects` (minus `shape`), `arrays` (minus `everyItem`/`someItem`) — runtime + types per group. | per-group runtime + type tests |
 | M4 | Composites: `shape`, `everyItem`, `someItem`, `not`, `anyOf` (with `branches`), `satisfies`; `deep-equal`; `explain` report paths (`user.address.zip`, `items[2].id`); `AffirmError` message. | report snapshot tests; no raw values in any `received` |
 | M5 | Standard Schema in `isType` (§10), async → `TypeError`. `NoContradictions<P>` (§6.4). | tests with a hand-rolled sync + async Standard Schema object (no Zod dep) |
 | M6 | Docs contract (§11): JSDoc + `@example` on every key in each `types/<group>.ts`; write `AGENTS.md` (referenced by §11 but not in the repo yet). JSDoc for `isFunction` and `isType: 'function'` must say classes pass and calling one without `new` throws. | a test that every `AffirmParams` key has JSDoc (scan the .ts source) |
@@ -215,6 +215,16 @@ export type { Affirmed } from './types/affirmed'
   - Params whose keys are all `undefined` (e.g. `{ isNull: undefined }`) pass; only a literal `{}` throws.
   - `expected` shows short param literals (`=== "admin"`, strings ≤ 32 chars); D5 is read as covering `received` (data), not params (code).
   - An `isType` guard passes only when it returns exactly `true`.
+
+**M3 notes**
+- Phases: all M3 keys (including `hasKey`/`hasPath` and `contains*`) are `Measure`. `isDeepEqual` is still the only `Structural` key until M4.
+- `hasPath`: numeric segments are ordinary own keys, so `'items.0.id'` works on arrays and also on objects with a `'0'` key. A leaf that exists but is `undefined` passes.
+- `hasOnlyKeys`: own *enumerable* keys, symbols included; `1` and `'1'` count as the same key.
+- `hasKey` with a single literal key narrows to `Record<K, unknown>`; a wide (`string`) or union key narrows only to `object`. On an optional property the key becomes required, but its type keeps `undefined` (it can be present and `undefined`).
+- `isEmpty`/`isNotEmpty` are kind-gated (D7) but don't narrow, as design §5 says.
+- Param errors added: `isBetween` with `min > max`, `isMultipleOf` with `0`/non-finite, `hasPath` with an empty segment, `matches` with a string (hint: use `includes`).
+- No `Simplify` yet: object hover reads as `Record<"id", unknown> & Record<"a" | "b", unknown> & Refined`. Simplifying would turn primitive intersections into object types; revisit with `shape` in M4.
+- For M6 JSDoc: `isMultipleOf` uses `%`, so floating-point divisors misbehave (`0.3 % 0.1 !== 0`).
 
 Within every milestone, work group-by-group: `types/<group>.ts` → `checks/<group>.ts` (`satisfies` keeps them in sync) → tests.
 

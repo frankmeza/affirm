@@ -4,7 +4,7 @@ import type { CheckDef } from '../../src/core/check-def'
 import { checks, defineRegistry, KEY_ORDER } from '../../src/core/registry'
 
 describe('registry', () => {
-  test('contains exactly the M1 keys', () => {
+  test('contains exactly the M1 + M3 keys', () => {
     expect(Object.keys(checks).sort()).toEqual(
       [
         // equality
@@ -14,6 +14,16 @@ describe('registry', () => {
         // runtime type
         'isType', 'isArray', 'isPlainObject', 'isFunction', 'isInstanceOf',
         'isValidDate', 'isInteger', 'isFiniteNumber', 'isNaN',
+        // size
+        'isEmpty', 'isNotEmpty', 'isBlank', 'hasLength', 'hasMinLength', 'hasMaxLength',
+        // numbers
+        'isGreaterThan', 'isAtLeast', 'isLessThan', 'isAtMost', 'isBetween', 'isPositive', 'isNegative', 'isMultipleOf',
+        // strings
+        'startsWith', 'endsWith', 'includes', 'matches',
+        // objects
+        'hasKey', 'hasKeys', 'hasAnyKey', 'hasOnlyKeys', 'hasPath',
+        // arrays
+        'contains', 'containsAll', 'containsAny',
       ].sort(),
     )
   })
@@ -151,5 +161,24 @@ describe('report never contains raw values (D5)', () => {
       expect(failure.received).toBe('object{1 key}')
       expect(JSON.stringify(failure)).not.toContain(secret)
     }
+  })
+})
+
+describe('rule 7 across phases (M3)', () => {
+  test('Kind → Measure → Structural, regardless of param key order', () => {
+    const { failures } = affirm.explain(42, {
+      isDeepEqual: [1],
+      hasMinLength: 3,
+      contains: 1,
+      isGreaterThan: 100,
+      isType: 'string',
+    })
+    expect(failures.map((f) => f.key)).toEqual(['isType', 'hasMinLength', 'isGreaterThan', 'contains', 'isDeepEqual'])
+  })
+
+  test('a failing type check short-circuits before Measure checks', () => {
+    const guard = (v: unknown): v is string => typeof v === 'string'
+    expect(affirm(42, { hasMinLength: 3, isType: guard })).toBe(false)
+    expect(affirm.explain(42, { hasMinLength: 3, isType: guard }).failures).toHaveLength(2)
   })
 })

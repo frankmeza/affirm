@@ -1,6 +1,11 @@
+import { arrayChecks } from '../checks/arrays'
 import { equalityChecks } from '../checks/equality'
 import { nullishChecks } from '../checks/nullish'
+import { numberChecks } from '../checks/numbers'
+import { objectChecks } from '../checks/objects'
 import { runtimeTypeChecks } from '../checks/runtime-type'
+import { sizeChecks } from '../checks/size'
+import { stringChecks } from '../checks/strings'
 import type { AffirmParams } from '../types/params'
 import type { CheckDef, CheckGroup } from './check-def'
 
@@ -23,7 +28,16 @@ export function defineRegistry<const G extends readonly AnyGroup[]>(...groups: G
 }
 
 /** Every check, keyed by params key. Group order here is the tie-breaker within a phase. */
-export const checks: CheckGroup<AffirmParams> = defineRegistry(nullishChecks, runtimeTypeChecks, equalityChecks)
+export const checks: CheckGroup<AffirmParams> = defineRegistry(
+  nullishChecks,
+  runtimeTypeChecks,
+  equalityChecks,
+  sizeChecks,
+  numberChecks,
+  stringChecks,
+  objectChecks,
+  arrayChecks,
+)
 
 export type CheckKey = keyof AffirmParams
 

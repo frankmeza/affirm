@@ -107,3 +107,25 @@ export const arrayParam = (param: unknown): string | undefined =>
 
 export const functionParam = (param: unknown): string | undefined =>
   typeof param === 'function' ? undefined : `a function (received ${formatParam(param)})`
+
+export const numberParam = (param: unknown): string | undefined =>
+  typeof param === 'number' && !Number.isNaN(param) ? undefined : `a number, not NaN (received ${formatParam(param)})`
+
+export const nonNegativeIntegerParam = (param: unknown): string | undefined =>
+  Number.isInteger(param) && (param as number) >= 0
+    ? undefined
+    : `a non-negative integer (received ${formatParam(param)})`
+
+export const stringParam = (param: unknown): string | undefined =>
+  typeof param === 'string' ? undefined : `a string (received ${formatParam(param)})`
+
+const isPropertyKey = (k: unknown): k is PropertyKey =>
+  typeof k === 'string' || typeof k === 'number' || typeof k === 'symbol'
+
+export const propertyKeyParam = (param: unknown): string | undefined =>
+  isPropertyKey(param) ? undefined : `a string, number or symbol key (received ${formatParam(param)})`
+
+export const propertyKeyListParam = (param: unknown): string | undefined =>
+  Array.isArray(param) && param.every(isPropertyKey)
+    ? undefined
+    : `an array of string, number or symbol keys (received ${formatParam(param)})`
