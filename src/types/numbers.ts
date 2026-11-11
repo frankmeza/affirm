@@ -1,22 +1,84 @@
-// Full JSDoc + @example in M6. Value must be a number other than NaN; bigint is v1.1 (Q3).
+// Value must be a number other than NaN; bigint is v1.1 (Q3).
 import type { BoolInfo, ParamInfo, ParamOf, Refine } from './narrowing'
 
 export interface NumberParams {
-  /** value > n */
+  /**
+   * Value is a number greater than n.
+   *
+   * Passes when the value is a number (not `NaN`) and `value > n`. No coercion: `'10'` fails.
+   * Narrows to `number` (refined).
+   *
+   * @example
+   * affirm(age, { isGreaterThan: 17 })
+   */
   isGreaterThan?: number
-  /** value >= n */
+  /**
+   * Value is a number greater than or equal to n.
+   *
+   * Passes when the value is a number (not `NaN`) and `value >= n`. Narrows to `number` (refined).
+   *
+   * @example
+   * affirm(quantity, { isInteger: true, isAtLeast: 1 })
+   */
   isAtLeast?: number
-  /** value < n */
+  /**
+   * Value is a number less than n.
+   *
+   * Passes when the value is a number (not `NaN`) and `value < n`. Narrows to `number` (refined).
+   *
+   * @example
+   * affirm(discount, { isLessThan: 1 })
+   */
   isLessThan?: number
-  /** value <= n */
+  /**
+   * Value is a number less than or equal to n.
+   *
+   * Passes when the value is a number (not `NaN`) and `value <= n`. Narrows to `number` (refined).
+   *
+   * @example
+   * affirm(retries, { isAtMost: 5 })
+   */
   isAtMost?: number
-  /** min <= value <= max, inclusive at both ends (D3). */
+  /**
+   * Value is a number between min and max, **inclusive at both ends**.
+   *
+   * Passes when the value is a number (not `NaN`) and `min <= value && value <= max`.
+   * `min > max` throws. Narrows to `number` (refined).
+   *
+   * @example
+   * affirm(rating, { isInteger: true, isBetween: [1, 5] }) // 1 and 5 pass
+   */
   isBetween?: readonly [min: number, max: number]
-  /** `true`: value > 0. `false`: value <= 0. Non-numbers fail both (D7). */
+  /**
+   * Value is a positive number (`true`), or a number that is not positive (`false`).
+   *
+   * Passes when the value is a number (not `NaN`) and `(value > 0) === param`. `0` is not positive.
+   * Non-numbers fail both polarities. Narrows to `number` (refined).
+   *
+   * @example
+   * affirm(order.total, { isPositive: true })
+   */
   isPositive?: boolean
-  /** `true`: value < 0. `false`: value >= 0. Non-numbers fail both (D7). */
+  /**
+   * Value is a negative number (`true`), or a number that is not negative (`false`).
+   *
+   * Passes when the value is a number (not `NaN`) and `(value < 0) === param`. `0` is not negative.
+   * Non-numbers fail both polarities. Narrows to `number` (refined).
+   *
+   * @example
+   * affirm(balance, { isNegative: false })
+   */
   isNegative?: boolean
-  /** `value % n === 0`. n is a finite non-zero number. */
+  /**
+   * Value is a number that is a multiple of n.
+   *
+   * Passes when the value is a number (not `NaN`) and `value % n === 0`. n must be finite and
+   * non-zero. Uses `%`, so fractional divisors are unreliable (`0.3 % 0.1 !== 0`): scale to
+   * integers first. Narrows to `number` (refined).
+   *
+   * @example
+   * affirm(minutes, { isMultipleOf: 15 })
+   */
   isMultipleOf?: number
 }
 

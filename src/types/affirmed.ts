@@ -48,9 +48,13 @@ export type CanNarrow<V, P> = IsExact<P> extends true
 
 /**
  * The type of `value` after `affirm(value, params)` returns `true` (design §6.3).
+ * Export it to name a narrowed type, e.g. in a helper's return type.
  * Exact params: plain narrowed type, and the `else` branch excludes it.
  * Otherwise: narrowed type `& Refined`, and the `else` branch keeps everything.
  * (When `CanNarrow` is false, `affirm` returns a plain boolean; this type then omits the brand.)
+ *
+ * @example
+ * type ValidOrder = Affirmed<unknown, { shape: { total: { isType: 'number' } } }> // { total: number } & Refined
  */
 export type Affirmed<V, P> = IsExact<P> extends true
   ? Result<V, P>

@@ -204,7 +204,7 @@ export type { Affirmed } from './types/affirmed'
 | M3 ✅ | Remaining leaf groups: `size`, `numbers`, `strings`, `objects` (minus `shape`), `arrays` (minus `everyItem`/`someItem`) — runtime + types per group. | per-group runtime + type tests |
 | M4 ✅ | Composites: `shape`, `everyItem`, `someItem`, `not`, `anyOf` (with `branches`), `satisfies`; `deep-equal`; `explain` report paths (`user.address.zip`, `items[2].id`); `AffirmError` message. | report snapshot tests; no raw values in any `received` |
 | M5 ✅ | Standard Schema in `isType` (§10), async → `TypeError`. `NoContradictions<P>` (§6.4). | tests with a hand-rolled sync + async Standard Schema object (no Zod dep) |
-| M6 | Docs contract (§11): JSDoc + `@example` on every key in each `types/<group>.ts`; write `AGENTS.md` (referenced by §11 but not in the repo yet). JSDoc for `isFunction` and `isType: 'function'` must say classes pass and calling one without `new` throws. | a test that every `AffirmParams` key has JSDoc (scan the .ts source) |
+| M6 ✅ | Docs contract (§11): JSDoc + `@example` on every key in each `types/<group>.ts`; write `AGENTS.md` (referenced by §11 but not in the repo yet). JSDoc for `isFunction` and `isType: 'function'` must say classes pass and calling one without `new` throws. | a test that every `AffirmParams` key has JSDoc (scan the .ts source) |
 
 **M1 notes**
 - Pulled forward from M4 because M1 needed them: `deep-equal.ts` (for `isDeepEqual`), `AffirmError` and `affirm.assert`.
@@ -239,6 +239,12 @@ export type { Affirmed } from './types/affirmed'
 - Standard Schema: vendored types and runtime helpers in `core/util/standard-schema.ts`. `isType` is now a hand-written `CheckDef` handling tags, guards and schemas. Details and deviations (input type, no issue messages) are recorded in design §10.
 - Contradictions: `types/contradictions.ts`. `ParamsCheck<P>` = unknown keys + contradictions, applied recursively. The rule list was corrected (design §6.4 "As implemented"). Includes a type-level `GreaterThan` for literal non-negative integers.
 - Two runtime tests use contradictory params on purpose and are marked `@ts-expect-error`.
+
+**M6 notes**
+- Every `AffirmParams` key has JSDoc: a one-line meaning, "Passes when …", what it narrows to, and an `@example` using the key. The entry points (`affirm`, `explain`, `assert`), `AffirmError` and `Affirmed` have examples too.
+- `test/runtime/docs.test.ts` scans `src/types/*.ts` and checks, for every registry key: JSDoc present, a "Passes when" sentence, and an `@example` that mentions the key. It also checks that the scanned keys equal the registry keys, so a new key can't skip docs. `test/node-fs.d.ts` types the two `node:fs` calls instead of adding `@types/node`.
+- `AGENTS.md` (repo root, listed in `package.json` `files`): API, the 9 rules, key table, recipes, narrowing behaviour, and don'ts. Each recipe was type-checked once against the library.
+- Open: the package name `assert` shadows Node's built-in `assert` module (design Q1).
 
 Within every milestone, work group-by-group: `types/<group>.ts` → `checks/<group>.ts` (`satisfies` keeps them in sync) → tests.
 

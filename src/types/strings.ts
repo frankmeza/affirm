@@ -1,14 +1,44 @@
-// Full JSDoc + @example in M6. Value must be a string.
+// Value must be a string.
 import type { ParamInfo, ParamOf, Refine } from './narrowing'
 
 export interface StringParams {
-  /** `value.startsWith(param)` */
+  /**
+   * Value is a string starting with this prefix.
+   *
+   * Passes when the value is a string and `value.startsWith(param)`. Narrows to `string` (refined).
+   *
+   * @example
+   * affirm(id, { startsWith: 'ord_' })
+   */
   startsWith?: string
-  /** `value.endsWith(param)` */
+  /**
+   * Value is a string ending with this suffix.
+   *
+   * Passes when the value is a string and `value.endsWith(param)`. Narrows to `string` (refined).
+   *
+   * @example
+   * affirm(filename, { endsWith: '.csv' })
+   */
   endsWith?: string
-  /** `value.includes(param)`. Strings only; for arrays use `contains`. */
+  /**
+   * Value is a string containing this substring. Strings only: for array items use `contains`.
+   *
+   * Passes when the value is a string and `value.includes(param)`. Narrows to `string` (refined).
+   *
+   * @example
+   * affirm(email, { includes: '@' })
+   */
   includes?: string
-  /** `param.test(value)`, with `lastIndex` reset first so `/g` and `/y` regexes are stateless. */
+  /**
+   * Value is a string matching this regular expression.
+   *
+   * Passes when the value is a string and `param.test(value)`. `lastIndex` is reset first, so `/g`
+   * and `/y` regexes give the same answer on every call. A string param throws (use `includes`).
+   * Narrows to `string` (refined).
+   *
+   * @example
+   * affirm(zip, { matches: /^\d{5}$/ })
+   */
   matches?: RegExp
 }
 

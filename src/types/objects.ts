@@ -1,4 +1,3 @@
-// Full JSDoc + @example in M6.
 // Value must be a non-null object or array. Own-key semantics (D2): `Object.hasOwn`.
 import type { NarrowNested } from './affirmed'
 import type { IsLiteral, IsUnion, ParamInfo, ParamOf, Refine } from './narrowing'
@@ -6,21 +5,68 @@ import type { AffirmParams } from './params'
 
 export interface ObjectParams {
   /**
-   * Each listed field passes its own params. A missing (or inherited) field is checked as
-   * `undefined`. Unlisted fields are ignored; combine with `hasOnlyKeys` to forbid them.
+   * Each listed field of the value passes its own params.
+   *
+   * Passes when the value is a non-null object (or array) and every listed field passes. A missing
+   * or inherited field is checked as `undefined`, so `{ isUndefined: true }` accepts it. Unlisted
+   * fields are ignored (add `hasOnlyKeys` to forbid them). Failures report the field path, e.g.
+   * `address.zip`. Narrows to `{ [field]: <narrowed field type> }` (refined).
+   *
+   * @example
+   * affirm(order, { shape: { total: { isType: 'number', isPositive: true }, id: { startsWith: 'ord_' } } })
    */
   shape?: { readonly [field: string]: AffirmParams }
-  /** The value has this own key (`Object.hasOwn`). */
+  /**
+   * Value is an object that has this own key.
+   *
+   * Passes when the value is a non-null object (or array) and `Object.hasOwn(value, key)`. Inherited
+   * keys and prototype getters don't count (use `satisfies`). A key set to `undefined` counts.
+   * A literal key narrows to `Record<key, unknown>` (refined).
+   *
+   * @example
+   * if (affirm(payload, { hasKey: 'total' })) { payload.total } // payload.total: unknown
+   */
   hasKey?: PropertyKey
-  /** The value has every one of these own keys. */
+  /**
+   * Value is an object that has every one of these own keys.
+   *
+   * Passes when the value is a non-null object (or array) and has each key (`Object.hasOwn`).
+   * `[]` passes. Literal keys narrow to `Record<keys, unknown>` (refined).
+   *
+   * @example
+   * affirm(row, { hasKeys: ['id', 'createdAt'] })
+   */
   hasKeys?: readonly PropertyKey[]
-  /** The value has at least one of these own keys. `[]` never passes. */
+  /**
+   * Value is an object that has at least one of these own keys.
+   *
+   * Passes when the value is a non-null object (or array) and has any of the keys. `[]` never passes.
+   * Narrows to `object` (refined).
+   *
+   * @example
+   * affirm(contact, { hasAnyKey: ['email', 'phone'] })
+   */
   hasAnyKey?: readonly PropertyKey[]
-  /** The value has no own enumerable key outside this list. Does not require any to be present. */
+  /**
+   * Value is an object with no own enumerable keys outside this list.
+   *
+   * Passes when the value is a non-null object (or array) and every own enumerable key (string or
+   * symbol) is listed. Does not require the listed keys to be present. `1` and `'1'` are the same
+   * key. Narrows to `object` (refined).
+   *
+   * @example
+   * affirm(query, { hasOnlyKeys: ['page', 'limit', 'sort'] })
+   */
   hasOnlyKeys?: readonly PropertyKey[]
   /**
-   * Every segment of a dot path exists as an own key: `'user.address.zip'`, `'items.0.id'`
-   * (numeric segments index arrays).
+   * Value has every segment of this dot path as an own key, at each level.
+   *
+   * Passes when each segment exists on an object or array along the way (`Object.hasOwn`). Numeric
+   * segments index arrays. The last segment may hold `undefined`. Empty segments (`'a..b'`) throw.
+   * A literal path narrows to the nested type, e.g. `{ items: { 0: { id: unknown } } }` (refined).
+   *
+   * @example
+   * affirm(event, { hasPath: 'data.object.customer' })
    */
   hasPath?: string
 }

@@ -1,16 +1,54 @@
-// Full JSDoc + @example in M6.
 import type { Exact, IsLiteral, ParamInfo, ParamOf, Refine } from './narrowing'
 
 export interface EqualityParams {
-  /** Passes when `value === param`. */
+  /**
+   * Value is exactly this value.
+   *
+   * Passes when `value === param`. Objects compare by reference; use `isDeepEqual` for structure.
+   * Narrows to the param's type. Exact for literal params, so the `else` branch excludes it.
+   *
+   * @example
+   * if (affirm(role, { is: 'admin' })) { role } // role: 'admin'
+   */
   is?: unknown
-  /** Passes when `value !== param`. */
+  /**
+   * Value is not this value.
+   *
+   * Passes when `value !== param`. Does not narrow.
+   *
+   * @example
+   * affirm(status, { isNot: 'deleted' })
+   */
   isNot?: unknown
-  /** Passes when the list includes the value (SameValueZero, so `NaN` matches `NaN`). */
+  /**
+   * Value is one of the listed values.
+   *
+   * Passes when the list includes the value (SameValueZero: like `===`, but `NaN` matches `NaN`).
+   * `[]` never passes. Narrows to the union of the elements; exact when they are all literals.
+   *
+   * @example
+   * if (affirm(size, { isOneOf: ['s', 'm', 'l'] })) { size } // size: 's' | 'm' | 'l'
+   */
   isOneOf?: readonly unknown[]
-  /** Passes when the list does not include the value (SameValueZero). */
+  /**
+   * Value is none of the listed values.
+   *
+   * Passes when the list does not include the value (SameValueZero). `[]` always passes. Does not narrow.
+   *
+   * @example
+   * affirm(username, { isNotOneOf: ['admin', 'root'] })
+   */
   isNotOneOf?: readonly unknown[]
-  /** Passes when the value is structurally equal to the param (design §7). */
+  /**
+   * Value is structurally equal to this value.
+   *
+   * Passes when both have the same type and contents: arrays elementwise, plain objects by own
+   * enumerable keys, Dates by time, RegExps by source and flags, Maps by keys and deep values,
+   * Sets by members (not deep). Other class instances compare by reference. Does not narrow.
+   *
+   * @example
+   * affirm(config.retry, { isDeepEqual: { attempts: 3, backoff: 'exponential' } })
+   */
   isDeepEqual?: unknown
 }
 

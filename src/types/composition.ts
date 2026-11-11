@@ -1,17 +1,39 @@
-// Full JSDoc + @example in M6.
 import type { IsExactNested, NarrowNested } from './affirmed'
 import type { Exact, ParamInfo, ParamOf, Refine } from './narrowing'
 import type { AffirmParams } from './params'
 import type { TypeGuard } from './runtime-type'
 
 export interface CompositionParams {
-  /** Passes when the nested params fail. Does not narrow. */
+  /**
+   * Value fails these params.
+   *
+   * Passes when the nested params fail. The nested keys combine with AND, so
+   * `not: { a, b }` means "not (a and b)". Does not narrow.
+   *
+   * @example
+   * affirm(username, { not: { isOneOf: ['admin', 'root'] } })
+   */
   not?: AffirmParams
-  /** Passes when at least one branch passes (the only way to express OR). Must be non-empty. */
+  /**
+   * Value passes at least one of these param branches: the only way to express OR.
+   *
+   * Passes when any branch passes. Must be non-empty. On failure, the report lists each branch's
+   * failures in `branches`. Narrows to the union of the branches' narrowing; exact when every
+   * branch is exact.
+   *
+   * @example
+   * if (affirm(note, { anyOf: [{ isNull: true }, { isType: 'string' }] })) { note } // string | null
+   */
   anyOf?: readonly AffirmParams[]
   /**
-   * Escape hatch: a predicate or type guard, run last. Use it for prototype getters,
-   * cross-field rules and anything else the keys can't express.
+   * Value satisfies this predicate. The escape hatch, always run last.
+   *
+   * Passes when the predicate returns exactly `true`. Use it for prototype getters, cross-field
+   * rules and anything the other keys can't express. Errors thrown by the predicate propagate.
+   * A type guard narrows to its type (refined); a plain predicate does not narrow.
+   *
+   * @example
+   * affirm(range, { satisfies: (r) => isRange(r) && r.min <= r.max }) // the param is `unknown`: guard first
    */
   satisfies?: ((value: unknown) => boolean) | TypeGuard
 }
