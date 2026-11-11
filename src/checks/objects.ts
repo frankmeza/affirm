@@ -1,7 +1,17 @@
-import { leaf, Phase, propertyKeyListParam, propertyKeyParam, type CheckGroup } from '../core/check-def'
+import {
+  composite,
+  leaf,
+  Phase,
+  propertyKeyListParam,
+  propertyKeyParam,
+  type CheckGroup,
+  type ValidateNested,
+} from '../core/check-def'
 import { formatList, formatParam } from '../core/describe'
-import { isObjectLike, ownKeys } from '../core/util/kind'
+import { joinPath, type AffirmFailure } from '../core/report'
+import { isObjectLike, isPlainObject, ownKeys } from '../core/util/kind'
 import type { ObjectParams } from '../types/objects'
+import type { AffirmParams } from '../types/params'
 
 const OBJECT = 'an object or array'
 
@@ -25,7 +35,33 @@ function hasOwnPath(value: object, path: string): boolean {
   return true
 }
 
+function validateShape(param: unknown, path: string, validateNested: ValidateNested): string | undefined {
+  if (!isPlainObject(param)) return `an object mapping field names to params (received ${formatParam(param)})`
+  if (Object.keys(param).length === 0) return 'at least one field; `shape: {}` would always pass'
+  for (const [field, fieldParams] of Object.entries(param)) validateNested(fieldParams, joinPath(path, field))
+  return undefined
+}
+
+const shapeCheck = composite<Readonly<Record<string, AffirmParams>>, object>({
+  phase: Phase.Structural,
+  validateParam: validateShape,
+  accepts: isObjectLike,
+  acceptsLabel: OBJECT,
+  evaluate(value, shape, ctx) {
+    const failures: AffirmFailure[] = []
+    for (const [field, fieldParams] of Object.entries(shape)) {
+      // Own-key semantics (D2): a missing or inherited field is checked as `undefined`.
+      const fieldValue = Object.hasOwn(value, field) ? (value as Record<string, unknown>)[field] : undefined
+      failures.push(...ctx.run(fieldValue, fieldParams, joinPath(ctx.path, field)))
+      if (ctx.mode === 'first' && failures.length > 0) break
+    }
+    return failures
+  },
+})
+
 export const objectChecks = {
+  shape: shapeCheck,
+
   hasKey: leaf<PropertyKey, object>({
     phase: Phase.Measure,
     validateParam: propertyKeyParam,

@@ -202,7 +202,7 @@ export type { Affirmed } from './types/affirmed'
 | M1 ✅ | `core/*` engine + `equality`, `nullish`, `runtime-type` groups (runtime only). `validate-params` with levenshtein suggestion. | runtime tests for those groups, rule 3–6 tests, canonical order test |
 | M2 ✅ | **Type spike / gate (§6.3).** `types/` for M1 groups, `Refined` brand, `Affirmed`, `Affirm` interface. Tests (a)–(e). | All five pass on the installed TS (`~7.0`), or fallback chosen and recorded in design §6.3 |
 | M3 ✅ | Remaining leaf groups: `size`, `numbers`, `strings`, `objects` (minus `shape`), `arrays` (minus `everyItem`/`someItem`) — runtime + types per group. | per-group runtime + type tests |
-| M4 | Composites: `shape`, `everyItem`, `someItem`, `not`, `anyOf` (with `branches`), `satisfies`; `deep-equal`; `explain` report paths (`user.address.zip`, `items[2].id`); `AffirmError` message. | report snapshot tests; no raw values in any `received` |
+| M4 ✅ | Composites: `shape`, `everyItem`, `someItem`, `not`, `anyOf` (with `branches`), `satisfies`; `deep-equal`; `explain` report paths (`user.address.zip`, `items[2].id`); `AffirmError` message. | report snapshot tests; no raw values in any `received` |
 | M5 | Standard Schema in `isType` (§10), async → `TypeError`. `NoContradictions<P>` (§6.4). | tests with a hand-rolled sync + async Standard Schema object (no Zod dep) |
 | M6 | Docs contract (§11): JSDoc + `@example` on every key in each `types/<group>.ts`; write `AGENTS.md` (referenced by §11 but not in the repo yet). JSDoc for `isFunction` and `isType: 'function'` must say classes pass and calling one without `new` throws. | a test that every `AffirmParams` key has JSDoc (scan the .ts source) |
 
@@ -225,6 +225,15 @@ export type { Affirmed } from './types/affirmed'
 - Param errors added: `isBetween` with `min > max`, `isMultipleOf` with `0`/non-finite, `hasPath` with an empty segment, `matches` with a string (hint: use `includes`).
 - No `Simplify` yet: object hover reads as `Record<"id", unknown> & Record<"a" | "b", unknown> & Refined`. Simplifying would turn primitive intersections into object types; revisit with `shape` in M4.
 - For M6 JSDoc: `isMultipleOf` uses `%`, so floating-point divisors misbehave (`0.3 % 0.1 !== 0`).
+
+**M4 notes**
+- New core pieces: `composite()` (kind gate + custom evaluate), `ctx.test()` (pass/fail of nested params, always short-circuiting), and a `validateNested` callback passed to `validateParam`. Check files never import the engine, so there's no import cycle.
+- Nested params are validated up front, with paths in messages: shape fields at `a.b`, item params at `items[*]` (even for empty arrays).
+- New programmer errors: `shape: {}`, `anyOf: []`, non-function `satisfies`.
+- `someItem` reports one failure (`at least one item passing { … }`), not one per item. `anyOf` reports one failure with `branches`: every failure per branch under `explain()`, the first per branch under `affirm()`.
+- `satisfies` passes only on exactly `true` (same as `isType` guards); exceptions thrown by the predicate propagate.
+- Phases: `shape`, `everyItem`, `someItem`, `not`, `anyOf` are `Structural`; `satisfies` is `Predicate` (always last).
+- **Soundness fix (design §6.3 addendum):** refined results that can be `null`/`undefined` fall back to a plain `boolean` via an overload. Three M3/M4 type tests had asserted the wrong types (`(string | null) & Refined` reduces to `string & Refined`) and were corrected.
 
 Within every milestone, work group-by-group: `types/<group>.ts` → `checks/<group>.ts` (`satisfies` keeps them in sync) → tests.
 

@@ -195,6 +195,21 @@ A TS type predicate narrows both branches. If `affirm(x, { isType: 'string', has
 - **Unknown keys are compile errors** via `NoUnknownKeys<P>`, intersected next to `NoContradictions<P>` (see §6.1). Generic inference skips excess-property checks, so without it `{ isNull: true, isTypo: 1 }` would type-check. The editor shows `… '{ __affirmError: "unknown check 'isTypo'" }'`.
 - **Known cosmetic gap:** when nothing in V is related to N, the fallback `V & N` can show impossible members, e.g. `(string | typeof Foo) & AnyFunction` for `isFunction: true`. It is sound (the `else` branch keeps everything), just noisy.
 
+**Addendum (M4): the brand cannot carry `null` or `undefined`, so those refined results use the fallback.** `null & Refined` reduces to `never`. A refined result that can be `null`/`undefined` therefore lost those members in the `if` branch: `affirm(x: string | null, { isFalsy: true })` claimed `x: string` when it is usually `null`. Leaving `null` unbranded would instead wrongly remove it from the `else` branch, and TypeScript predicates can't express a one-sided narrowing. So:
+
+- `CanNarrow<V, P>` is `false` when P is refined and `NarrowTo<V, Narrow<P>>` includes `null` or `undefined`.
+- `affirm` and `affirm.assert` each have two overloads. The narrowing overload is disabled (its params type becomes `never`) when `CanNarrow` is false, so TypeScript picks the plain `boolean`/`void` overload. This is the §6.3 fallback, applied only where it's needed.
+- Exact results may still contain `null` (`anyOf: [{ isNull: true }, { isType: 'string' }]` → `string | null`, `else` excludes it).
+- Error UX: a compile error such as an unknown key now reads "No overload matches this call. The last overload gave the following error: … `unknown check 'isTypo'`".
+- Tests: "soundness" block in `test/types/composites.test-d.ts`. Removing the guard produces 5 type errors there.
+
+**Other M4 type changes:**
+
+- Narrowings of different keys are combined with the same filtering as `Affirmed` (not plain `&`), so `isType: 'string'` + `hasMinLength` gives `string`, not `string & (string | readonly unknown[] | …)`.
+- `shape` field types, `everyItem` elements and `anyOf` branches use the unbranded narrowing (`{ total: number }`, not `{ total: number & Refined }`). The outer call is always refined for `shape`/`everyItem`, so the inner brand would only add noise.
+- Unknown keys are compile errors at any depth (shape fields, `everyItem`, `someItem`, `not`, `anyOf` branches).
+- Nested narrowing stops recursing on the wide `AffirmParams` type, which otherwise hit "type instantiation is excessively deep".
+
 ### 6.4 Contradiction detection
 
 `NoContradictions<P>` resolves to `unknown` when P is fine, or to `{ __affirmError: '<message>' }` so the editor shows a readable error at the call site. v1 rules (all for `true` values):

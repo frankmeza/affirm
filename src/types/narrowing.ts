@@ -86,13 +86,27 @@ export type IsUnion<T, U = T> = (T extends unknown ? ([U] extends [T] ? false : 
   ? false
   : true
 
-/** Intersection of every info's `n`. */
-export type NarrowOf<T extends readonly KeyInfo[]> = T extends readonly [
+/**
+ * Narrows V by C the way TypeScript narrows a union with a type guard:
+ * keep constituents of V that are subtypes of C, replace constituents that C refines,
+ * drop unrelated constituents; if nothing is related, fall back to `V & C`.
+ * (A plain `V & C` leaves artefacts like `string & readonly unknown[]` in unions.)
+ */
+type Filter<V, C> = V extends unknown ? (C extends unknown ? (V extends C ? V : C extends V ? C : never) : never) : never
+export type NarrowTo<V, C> = [Filter<V, C>] extends [never] ? V & C : Filter<V, C>
+
+/**
+ * Every info's `n`, combined with `NarrowTo` (so `string` + `Measurable` gives `string`,
+ * not `string & (string | readonly unknown[] | …)`).
+ * Tail-recursive (accumulator) so TypeScript doesn't count each of the ~50 keys against the
+ * instantiation depth limit, which nested params would otherwise hit.
+ */
+export type NarrowOf<T extends readonly KeyInfo[], Acc = unknown> = T extends readonly [
   infer H extends KeyInfo,
   ...infer R extends readonly KeyInfo[],
 ]
-  ? H['n'] & NarrowOf<R>
-  : unknown
+  ? NarrowOf<R, NarrowTo<Acc, H['n']>>
+  : Acc
 
 /** `true` only when every info is exact. */
 export type ExactOf<T extends readonly KeyInfo[]> = false extends T[number]['e'] ? false : true

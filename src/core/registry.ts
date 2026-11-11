@@ -1,4 +1,5 @@
 import { arrayChecks } from '../checks/arrays'
+import { compositionChecks } from '../checks/composition'
 import { equalityChecks } from '../checks/equality'
 import { nullishChecks } from '../checks/nullish'
 import { numberChecks } from '../checks/numbers'
@@ -37,6 +38,7 @@ export const checks: CheckGroup<AffirmParams> = defineRegistry(
   stringChecks,
   objectChecks,
   arrayChecks,
+  compositionChecks,
 )
 
 export type CheckKey = keyof AffirmParams

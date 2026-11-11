@@ -26,7 +26,8 @@ describe('size', () => {
   test('isBlank narrows to string in both polarities (D7); isEmpty does not narrow', () => {
     const x = value<string | null>()
     if (affirm(x, { isBlank: false })) expectTypeOf(x).toEqualTypeOf<string & Refined>()
-    if (affirm(x, { isEmpty: true })) expectTypeOf(x).toEqualTypeOf<(string | null) & Refined>()
+    // isEmpty is refined and its result could be null, so it falls back to boolean (see composites.test-d.ts)
+    if (affirm(x, { isEmpty: true })) expectTypeOf(x).toEqualTypeOf<string | null>()
   })
 })
 

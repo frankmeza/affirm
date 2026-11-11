@@ -11,11 +11,12 @@ export function runParams(value: unknown, params: AffirmParams, path: string, mo
   const keys = (Object.keys(params).filter(isCheckKey) as CheckKey[]).sort((a, b) => rankOf(a) - rankOf(b))
   const failures: AffirmFailure[] = []
   const run = (v: unknown, p: AffirmParams, at: string) => runParams(v, p, at, mode)
+  const test = (v: unknown, p: AffirmParams) => runParams(v, p, path, 'first').length === 0
 
   for (const key of keys) {
     const param = params[key]
     if (param === undefined) continue // rule 3
-    const ctx: EvalContext = { key, path, mode, run }
+    const ctx: EvalContext = { key, path, mode, run, test }
     const result = (checks[key] as CheckDef<unknown>).evaluate(value, param, ctx)
     if (result.length > 0) {
       failures.push(...result)

@@ -26,7 +26,7 @@ export function validateParams(params: unknown, path = ''): asserts params is Af
     }
     const param: unknown = (params as Record<string, unknown>)[key]
     if (param === undefined) continue // rule 3: undefined = skip
-    const problem = checks[key].validateParam(param, path)
+    const problem = checks[key].validateParam(param, path, validateParams)
     if (problem !== undefined) {
       throw new TypeError(`affirm: invalid param for \`${key}\`${where}: expected ${problem}`)
     }

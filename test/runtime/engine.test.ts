@@ -4,7 +4,7 @@ import type { CheckDef } from '../../src/core/check-def'
 import { checks, defineRegistry, KEY_ORDER } from '../../src/core/registry'
 
 describe('registry', () => {
-  test('contains exactly the M1 + M3 keys', () => {
+  test('contains every key in the design (§5)', () => {
     expect(Object.keys(checks).sort()).toEqual(
       [
         // equality
@@ -23,7 +23,11 @@ describe('registry', () => {
         // objects
         'hasKey', 'hasKeys', 'hasAnyKey', 'hasOnlyKeys', 'hasPath',
         // arrays
-        'contains', 'containsAll', 'containsAny',
+        'contains', 'containsAll', 'containsAny', 'everyItem', 'someItem',
+        // objects (M4)
+        'shape',
+        // composition
+        'not', 'anyOf', 'satisfies',
       ].sort(),
     )
   })
@@ -36,7 +40,7 @@ describe('registry', () => {
   test('KEY_ORDER is sorted by phase', () => {
     const phases = KEY_ORDER.map((key) => checks[key].phase)
     expect(phases).toEqual([...phases].sort((a, b) => a - b))
-    expect(KEY_ORDER.at(-1)).toBe('isDeepEqual') // only Structural key so far
+    expect(KEY_ORDER.at(-1)).toBe('satisfies') // the only Predicate key: always last
   })
 })
 

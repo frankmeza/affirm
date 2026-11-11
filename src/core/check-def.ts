@@ -24,18 +24,23 @@ export interface EvalContext {
   readonly path: string
   /** `'first'` for `affirm()` (short-circuit), `'all'` for `explain()` (collect everything). */
   readonly mode: Mode
-  /** Recursion for composite keys. Params passed here must already be validated. */
+  /** Recursion for composite keys: failures of nested params, in the current mode. Params must already be validated. */
   run(value: unknown, params: AffirmParams, path: string): AffirmFailure[]
+  /** Pass/fail of nested params, always short-circuiting. For `not` and `someItem`. */
+  test(value: unknown, params: AffirmParams): boolean
 }
+
+/** Validates nested params (throws `TypeError`). Passed to composite keys so checks don't import the engine. */
+export type ValidateNested = (params: unknown, path: string) => void
 
 export interface CheckDef<Param> {
   readonly phase: Phase
   /**
    * Programmer-error guard (design §4 rule 6). Returns `undefined` when the param is valid,
    * otherwise a description of what was expected, e.g. `'a non-negative integer'`.
-   * Composite keys validate their nested params here as well.
+   * Composite keys validate their nested params with `validateNested`.
    */
-  validateParam(param: unknown, path: string): string | undefined
+  validateParam(param: unknown, path: string, validateNested: ValidateNested): string | undefined
   /** Returns `[]` on pass. */
   evaluate(value: unknown, param: Param, ctx: EvalContext): AffirmFailure[]
 }
@@ -96,6 +101,38 @@ export function booleanLeaf<V = unknown>(spec: BooleanLeafSpec<V>): CheckDef<boo
       return [makeFailure(ctx.key, ctx.path, param ? spec.expected : spec.expectedNot, value)]
     },
   }
+}
+
+export interface CompositeSpec<P, V> extends Gate<V> {
+  phase: Phase
+  validateParam: (param: unknown, path: string, validateNested: ValidateNested) => string | undefined
+  /** Called only when the gate passes. Returns `[]` on pass. */
+  evaluate: (value: V, param: P, ctx: EvalContext) => AffirmFailure[]
+}
+
+/**
+ * Builds a composite key (shape, everyItem, anyOf, …). The kind gate runs first, so a value of the
+ * wrong kind produces ONE failure instead of one per child (design §4 rule 7).
+ */
+export function composite<P, V = unknown>(spec: CompositeSpec<P, V>): CheckDef<P> {
+  return {
+    phase: spec.phase,
+    validateParam: spec.validateParam,
+    evaluate(value, param, ctx) {
+      if (spec.accepts !== undefined && !spec.accepts(value)) {
+        return [makeFailure(ctx.key, ctx.path, spec.acceptsLabel ?? 'a different kind of value', value)]
+      }
+      return spec.evaluate(value as V, param, ctx)
+    },
+  }
+}
+
+/** `{ isNull: true, hasKey: "id" }`: a short rendering of nested params for `expected`. */
+export function formatParams(params: AffirmParams): string {
+  const parts = Object.entries(params)
+    .filter(([, v]) => v !== undefined)
+    .map(([k, v]) => `${k}: ${formatParam(v)}`)
+  return `{ ${parts.join(', ')} }`
 }
 
 // Shared param validators -------------------------------------------------------------------
