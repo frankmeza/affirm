@@ -1,6 +1,8 @@
-import { booleanLeaf, leaf, Phase, type CheckGroup } from '../core/check-def'
+import { booleanLeaf, leaf, Phase, type CheckDef, type CheckGroup, type EvalContext } from '../core/check-def'
 import { formatParam } from '../core/describe'
+import { joinPath, makeFailure, type AffirmFailure } from '../core/report'
 import { isDate, isNumber, isPlainObject, looksLikeConstructor } from '../core/util/kind'
+import { isStandardSchema, validateSync, type StandardSchemaV1 } from '../core/util/standard-schema'
 import type { RuntimeTypeParams, TypeGuard, TypeTag } from '../types/runtime-type'
 
 const TYPE_TAGS: ReadonlySet<string> = new Set<TypeTag>([
@@ -14,6 +16,8 @@ const TYPE_TAGS: ReadonlySet<string> = new Set<TypeTag>([
 ])
 
 function validateIsType(param: unknown): string | undefined {
+  // Schemas first: ArkType schemas are callable, and would otherwise be taken for guards.
+  if (isStandardSchema(param)) return undefined
   if (typeof param === 'string') {
     if (TYPE_TAGS.has(param)) return undefined
     if (param === 'undefined') return `a type tag; use \`isUndefined: true\` instead of \`isType: 'undefined'\``
@@ -22,14 +26,11 @@ function validateIsType(param: unknown): string | undefined {
   }
   if (typeof param === 'function') {
     if (looksLikeConstructor(param)) {
-      return `a type tag or guard; use \`isInstanceOf: ${param.name || 'YourClass'}\` for classes`
+      return `a type tag, guard or schema; use \`isInstanceOf: ${param.name || 'YourClass'}\` for classes`
     }
     return undefined
   }
-  if (typeof param === 'object' && param !== null && '~standard' in param) {
-    return 'a type tag or guard; Standard Schema support is not implemented yet (M5)'
-  }
-  return `a type tag or a type guard function (received ${formatParam(param)})`
+  return `a type tag, a type guard function or a Standard Schema (received ${formatParam(param)})`
 }
 
 function matchesTag(value: unknown, tag: TypeTag): boolean {
@@ -37,16 +38,66 @@ function matchesTag(value: unknown, tag: TypeTag): boolean {
   return typeof value === tag
 }
 
+type PathSegment = PropertyKey | StandardSchemaV1.PathSegment
+
+const segmentKey = (segment: PathSegment): PropertyKey =>
+  typeof segment === 'object' && segment !== null ? segment.key : segment
+
+/** Appends a schema issue path: numbers as `[n]`, strings as `.key`, symbols as `[Symbol(x)]`. */
+function appendIssuePath(base: string, path: readonly PathSegment[] | undefined): string {
+  let out = base
+  for (const segment of path ?? []) {
+    const key = segmentKey(segment)
+    out = typeof key === 'symbol' ? `${out}[${key.toString()}]` : joinPath(out, key)
+  }
+  return out
+}
+
+/** The value an issue points at, for `received` (described by type only, D5). */
+function valueAt(value: unknown, path: readonly PathSegment[] | undefined): unknown {
+  let current = value
+  for (const segment of path ?? []) {
+    if ((typeof current !== 'object' && typeof current !== 'function') || current === null) return undefined
+    current = (current as Record<PropertyKey, unknown>)[segmentKey(segment)]
+  }
+  return current
+}
+
+/**
+ * Maps schema issues to failures (design §10). Issue *messages* are not copied: libraries may put
+ * the received value in them (e.g. enum mismatches), and reports must not carry raw values (D5).
+ */
+function schemaFailures(schema: StandardSchemaV1, value: unknown, ctx: EvalContext): AffirmFailure[] {
+  const result = validateSync(schema, value)
+  if (result.issues === undefined) return []
+  const vendor = schema['~standard'].vendor
+  if (result.issues.length === 0) return [makeFailure(ctx.key, ctx.path, `a value accepted by the ${vendor} schema`, value)]
+  return result.issues.map((issue) =>
+    makeFailure(
+      ctx.key,
+      appendIssuePath(ctx.path, issue.path),
+      `a value accepted by the ${vendor} schema`,
+      valueAt(value, issue.path),
+    ),
+  )
+}
+
+const isTypeCheck: CheckDef<TypeTag | TypeGuard | StandardSchemaV1> = {
+  phase: Phase.Kind,
+  validateParam: validateIsType,
+  evaluate(value, param, ctx) {
+    if (isStandardSchema(param)) return schemaFailures(param, value, ctx)
+    if (typeof param === 'string') {
+      if (matchesTag(value, param)) return []
+      return [makeFailure(ctx.key, ctx.path, param === 'object' ? 'a non-null object' : `typeof ${param}`, value)]
+    }
+    if (param(value) === true) return []
+    return [makeFailure(ctx.key, ctx.path, `${param.name || 'guard'}(value) to return true`, value)]
+  },
+}
+
 export const runtimeTypeChecks = {
-  isType: leaf<TypeTag | TypeGuard>({
-    phase: Phase.Kind,
-    validateParam: validateIsType,
-    test: (value, param) => (typeof param === 'string' ? matchesTag(value, param) : param(value) === true),
-    expected: (param) => {
-      if (typeof param === 'function') return `${param.name || 'guard'}(value) to return true`
-      return param === 'object' ? 'a non-null object' : `typeof ${param}`
-    },
-  }),
+  isType: isTypeCheck,
 
   isArray: booleanLeaf({
     phase: Phase.Kind,

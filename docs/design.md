@@ -225,6 +225,15 @@ A TS type predicate narrows both branches. If `affirm(x, { isType: 'string', has
 
 Keep the list small and certain. False positives are worse than misses.
 
+**As implemented (M5), with three corrections to the list above:**
+
+- **`isNull` + `isDefined` is not a contradiction and was dropped.** `isDefined` means "not `undefined`", and `null` passes both. (`isUndefined` + `isDefined` stays.)
+- **"Any `isType`" means any `isType` *tag*.** A guard or schema may accept `null`/`undefined` (`(v): v is null | undefined`, `z.null()`), so those are not flagged.
+- **"Any number key" includes the number-gated keys** `isInteger`, `isFiniteNumber`, `isNaN`, and any polarity of boolean number/string keys (`isType: 'string', isPositive: false` can never pass, per D7). String keys: `startsWith`, `endsWith`, `includes`, `matches`, `isBlank`.
+- **Contradictions are checked inside nested params too** (shape fields, `everyItem`, `someItem`, `not`, `anyOf` branches), but not across them (`anyOf: [{ isNull: true }, { isPresent: true }]` is fine).
+- **Messages read like:** "`isNull: true` contradicts `isPresent: true`", "`hasMinLength: 10` is greater than `hasMaxLength: 9`" (literal non-negative integers only; wide `number`s are never compared).
+- **Type-level only:** at runtime these params simply fail.
+
 ## 7. `isDeepEqual` rules
 
 Same-type required. Primitives by `Object.is` except `+0`/`-0` are equal. Arrays: same length, elementwise. Plain objects: same own enumerable string keys, valuewise. `Date`: same time. `RegExp`: same `source` and `flags`. `Map`: same size, same keys (SameValueZero), values deep-equal. `Set`: same size, every member present (SameValueZero; no deep matching of object members in v1). Class instances other than these: reference equality only. Cycles: track visited pairs; a pair already under comparison counts as equal.
@@ -255,6 +264,13 @@ Negated boolean keys read naturally: `expected: 'not null'`.
 ## 10. Standard Schema
 
 Detect via the `'~standard'` property. Vendor the `StandardSchemaV1` type definitions (the spec intends them to be copied; no dependency). Call `schema['~standard'].validate(value)`; if it returns a thenable, throw `TypeError` ("async schemas are not supported by affirm; validate them before calling affirm"). Map issues into `AffirmFailure`s with `key: 'isType'` and the issue path appended.
+
+**As implemented (M5):**
+
+- **Detection** requires `'~standard'.version === 1` and a `validate` function. Schemas may be objects (Zod, Valibot) or callable functions (ArkType); a callable schema is treated as a schema, not a guard.
+- **Narrowing uses `InferInput<S>`, not `InferOutput<S>`.** affirm validates but never transforms, so after `isType: z.string().transform(Number)` the value is still the input `string`, not the output `number`. Refined, as specified (so nullable schemas fall back to `boolean`, §6.3 addendum).
+- **Issue messages are not copied into reports.** Libraries may embed the received value in them (e.g. enum mismatches), which would break D5. Each issue becomes `expected: 'a value accepted by the <vendor> schema'`, and `received` describes the value at the issue's path. **Open question:** an opt-in to include messages, together with the possible `includeValues` v2 option (§8).
+- **Async schemas:** the promise is given a no-op rejection handler before throwing, so discarding it can't cause an unhandled rejection.
 
 ## 11. Documentation contract (part of the API)
 

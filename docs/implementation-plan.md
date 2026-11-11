@@ -203,7 +203,7 @@ export type { Affirmed } from './types/affirmed'
 | M2 ✅ | **Type spike / gate (§6.3).** `types/` for M1 groups, `Refined` brand, `Affirmed`, `Affirm` interface. Tests (a)–(e). | All five pass on the installed TS (`~7.0`), or fallback chosen and recorded in design §6.3 |
 | M3 ✅ | Remaining leaf groups: `size`, `numbers`, `strings`, `objects` (minus `shape`), `arrays` (minus `everyItem`/`someItem`) — runtime + types per group. | per-group runtime + type tests |
 | M4 ✅ | Composites: `shape`, `everyItem`, `someItem`, `not`, `anyOf` (with `branches`), `satisfies`; `deep-equal`; `explain` report paths (`user.address.zip`, `items[2].id`); `AffirmError` message. | report snapshot tests; no raw values in any `received` |
-| M5 | Standard Schema in `isType` (§10), async → `TypeError`. `NoContradictions<P>` (§6.4). | tests with a hand-rolled sync + async Standard Schema object (no Zod dep) |
+| M5 ✅ | Standard Schema in `isType` (§10), async → `TypeError`. `NoContradictions<P>` (§6.4). | tests with a hand-rolled sync + async Standard Schema object (no Zod dep) |
 | M6 | Docs contract (§11): JSDoc + `@example` on every key in each `types/<group>.ts`; write `AGENTS.md` (referenced by §11 but not in the repo yet). JSDoc for `isFunction` and `isType: 'function'` must say classes pass and calling one without `new` throws. | a test that every `AffirmParams` key has JSDoc (scan the .ts source) |
 
 **M1 notes**
@@ -234,6 +234,11 @@ export type { Affirmed } from './types/affirmed'
 - `satisfies` passes only on exactly `true` (same as `isType` guards); exceptions thrown by the predicate propagate.
 - Phases: `shape`, `everyItem`, `someItem`, `not`, `anyOf` are `Structural`; `satisfies` is `Predicate` (always last).
 - **Soundness fix (design §6.3 addendum):** refined results that can be `null`/`undefined` fall back to a plain `boolean` via an overload. Three M3/M4 type tests had asserted the wrong types (`(string | null) & Refined` reduces to `string & Refined`) and were corrected.
+
+**M5 notes**
+- Standard Schema: vendored types and runtime helpers in `core/util/standard-schema.ts`. `isType` is now a hand-written `CheckDef` handling tags, guards and schemas. Details and deviations (input type, no issue messages) are recorded in design §10.
+- Contradictions: `types/contradictions.ts`. `ParamsCheck<P>` = unknown keys + contradictions, applied recursively. The rule list was corrected (design §6.4 "As implemented"). Includes a type-level `GreaterThan` for literal non-negative integers.
+- Two runtime tests use contradictory params on purpose and are marked `@ts-expect-error`.
 
 Within every milestone, work group-by-group: `types/<group>.ts` → `checks/<group>.ts` (`satisfies` keeps them in sync) → tests.
 

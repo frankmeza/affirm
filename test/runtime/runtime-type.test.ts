@@ -57,16 +57,8 @@ describe("isType: guards", () => {
       /use `isInstanceOf: Date`/,
     )
   })
-
-  test("Standard Schema is rejected until M5", () => {
-    const schema = {
-      "~standard": { version: 1, vendor: "x", validate: () => ({ value: 1 }) },
-    }
-    expect(() => affirm(1, { isType: schema as never })).toThrow(
-      /Standard Schema/,
-    )
-  })
 })
+// Standard Schema support for isType: test/runtime/standard-schema.test.ts
 
 describe("isArray / isPlainObject / isFunction", () => {
   test("isArray", () => {

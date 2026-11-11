@@ -1,4 +1,5 @@
-// Full JSDoc + @example in M6. Standard Schema support for `isType` lands in M5.
+// Full JSDoc + @example in M6.
+import type { StandardSchemaV1 } from '../core/util/standard-schema'
 import type { BoolInfo, Exact, IsUnion, ParamInfo, ParamOf, Refine } from './narrowing'
 
 export type TypeTag = 'string' | 'number' | 'boolean' | 'bigint' | 'symbol' | 'function' | 'object'
@@ -11,10 +12,11 @@ export type AnyFunction = (...args: never[]) => unknown
 
 export interface RuntimeTypeParams {
   /**
-   * A `typeof` tag (`'object'` excludes `null`, includes arrays) or a type guard.
+   * A `typeof` tag (`'object'` excludes `null`, includes arrays), a type guard, or a synchronous
+   * Standard Schema (Zod, Valibot, ArkType, …). Schemas only validate; nothing is parsed or transformed.
    * Not `'null'`/`'undefined'` (use `isNull`/`isUndefined`); not a class (use `isInstanceOf`).
    */
-  isType?: TypeTag | TypeGuard
+  isType?: TypeTag | TypeGuard | StandardSchemaV1
   /** `true`: `Array.isArray(value)`. */
   isArray?: boolean
   /** `true`: prototype is `Object.prototype` or `null`. */
@@ -45,7 +47,9 @@ interface TagTypes {
 
 type IsTypeInfo<V> = ParamInfo<
   V,
-  V extends TypeGuard<infer T>
+  V extends StandardSchemaV1
+    ? Refine<StandardSchemaV1.InferInput<V>> // input, not output: affirm never transforms the value
+    : V extends TypeGuard<infer T>
     ? Exact<T> // same contract as a TS guard
     : [V] extends [TypeTag]
       ? IsUnion<V> extends true

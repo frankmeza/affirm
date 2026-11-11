@@ -150,6 +150,7 @@ describe('affirm.assert / AffirmError (design §9)', () => {
 
   test('default message lists at most 3 reasons, then (+N more)', () => {
     const params = { isNull: true, isUndefined: true, isTruthy: true, isType: 'string', isArray: true } as const
+    // @ts-expect-error contradictory on purpose: we want five failures
     expect(() => affirm.assert(0, params)).toThrow(/^affirm\.assert failed: .+; .+; [^;]+ \(\+2 more\)$/)
   })
 })
@@ -170,6 +171,7 @@ describe('report never contains raw values (D5)', () => {
 
 describe('rule 7 across phases (M3)', () => {
   test('Kind → Measure → Structural, regardless of param key order', () => {
+    // @ts-expect-error contradictory on purpose (isType string + number key): we want one failure per phase
     const { failures } = affirm.explain(42, {
       isDeepEqual: [1],
       hasMinLength: 3,
