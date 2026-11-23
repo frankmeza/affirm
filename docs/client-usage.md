@@ -71,7 +71,21 @@ export default [
 | `affirm/guard-naming` | With `guards` set: every named function whose whole body returns `affirm(…)` matches the pattern, and only such functions do. Does nothing without `guards` |
 | `affirm/const-params` | TypeScript files: params declared apart from the call are `as const`, so they keep their exact values (§8.1). Autofixable |
 
-The rules need no type information. `eslint` is an optional peer dependency, so projects that don't lint don't install it.
+The rules need no type information. **With type information, `affirm/const-params` also follows imported names to their declarations in other files**, the only way to catch an imported bare list (`isOneOf: ROLES`, §8.1). Turn it on in the TypeScript parser options:
+
+```js
+import tsParser from '@typescript-eslint/parser'
+
+export default [
+  {
+    files: ['**/*.ts'],
+    languageOptions: { parser: tsParser, parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname } },
+  },
+  affirm.configs.recommended,
+]
+```
+
+Type-aware linting is slower, and `typescript-eslint` doesn't support TypeScript 7 yet (it needs TypeScript's JavaScript API). Without it, every rule still works; only the cross-file list check is skipped. `eslint` is an optional peer dependency, so projects that don't lint don't install it.
 
 ---
 
@@ -652,7 +666,14 @@ export const manifest = { matches: ['<all_urls>'] }                // ✓ `match
 export const ROLES = ['admin', 'member']                            // not recognised: a bare list has no keys
 ```
 
-The remaining gap is **bare lists exported from another file** (`isOneOf: ROLES` where `ROLES` is imported). A list has no keys to recognise, so the rule only catches one when it's declared in the same file as its use. Write lists that are used in params `as const` where they're declared.
+**Bare lists exported from another file need type information.** In `isOneOf: ROLES` where `ROLES` is imported, a list has no keys to recognise. With type-aware linting (§1), the rule asks TypeScript where `ROLES` is declared and reports the use when that declaration is a literal without `as const` (or with a type annotation such as `: string[]`):
+
+```text
+affirm: `ROLES` is used in params here, but it is declared without `as const` in src/roles.ts:1, so TypeScript
+widened its values ('a' → string) before affirm() sees them, and narrowing is silently lost. Fix that declaration: `= … as const`.
+```
+
+This works through re-exports and namespace imports (`R.ROLES`). ESLint can only fix the file it is linting, so this one has no autofix; the message says where to add `as const`. Values without a literal to fix are skipped: `loadRoles()`, `let`, and declarations from packages. Without type information, write lists used in params `as const` where they're declared.
 
 ### 8.2 Inline functions in params need an annotated parameter
 

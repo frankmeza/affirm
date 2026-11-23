@@ -1,0 +1,12 @@
+{
+  // Test-only TypeScript project for the type-aware part of affirm/const-params (design D10).
+  "compilerOptions": {
+    "target": "es2022",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true
+  },
+  "include": ["*.ts"]
+}

@@ -119,7 +119,7 @@ if (!report.ok) return badRequest(report.failures.map((f) => f.reason))
 
 ## Don't
 
-- **Don't store params in a variable without `as const`.** `const p = { isOneOf: ['a', 'b'] }` is widened to `string[]` before `affirm` sees it, so it narrows to `string`, not `'a' | 'b'`. Write `const p = { … } as const` (or `as const satisfies AffirmParams`), never `const p: AffirmParams = …`. `affirm/const-params` flags this, including params exported from other files (recognised by their keys), and `eslint --fix` adds `as const`. Write lists used in params (`isOneOf: ROLES`) `as const` too.
+- **Don't store params in a variable without `as const`.** `const p = { isOneOf: ['a', 'b'] }` is widened to `string[]` before `affirm` sees it, so it narrows to `string`, not `'a' | 'b'`. Write `const p = { … } as const` (or `as const satisfies AffirmParams`), never `const p: AffirmParams = …`. `affirm/const-params` flags this, including params exported from other files (recognised by their keys), and `eslint --fix` adds `as const`. Write lists used in params (`isOneOf: ROLES`) `as const` too; with type-aware linting (`projectService`), imported lists that aren't are reported at the use.
 - **Don't negate `affirm()`** (Rule 10). No `if (!affirm(…)) return` guard clauses: use `affirm.assert`, `explain`, or put the main path in the positive branch.
 - **Don't use `affirm` to parse or transform** (coercion, defaults, trimming). Use a schema library, then `affirm` its result or pass the schema as `isType`.
 - **Don't write `isType: 'null'` or `isType: 'undefined'`** (they throw). Use `isNull` / `isUndefined`.

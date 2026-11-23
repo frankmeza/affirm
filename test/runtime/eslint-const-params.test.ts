@@ -204,3 +204,48 @@ tester.run('const-params', rule, {
     },
   ]),
 })
+
+// Type-aware: with typescript-eslint's type information, names imported from other files are followed
+// to their declarations (test/fixtures/typed-project/roles.ts). This is what catches bare lists.
+const CWD = (globalThis as unknown as { process: { cwd(): string } }).process.cwd() // vitest runs from the project root
+const PROJECT = `${CWD}/test/fixtures/typed-project`
+const typedTester = new RuleTester({
+  languageOptions: {
+    parser: tsParserModule as unknown as Linter.Parser,
+    parserOptions: { project: './tsconfig.json', tsconfigRootDir: PROJECT },
+  },
+})
+const inProject = <T extends object>(cases: T[]) => cases.map((c) => ({ filename: `${PROJECT}/file.ts`, ...c }))
+
+const importedWidened = (name: string, reason: string, line: number) =>
+  `affirm: \`${name}\` is used in params here, but it is declared ${reason} in test/fixtures/typed-project/roles.ts:${line}, ` +
+  "so TypeScript widened its values ('a' → string) before affirm() sees them, and narrowing is silently lost. Fix that declaration: `= … as const`."
+
+typedTester.run('const-params (type-aware)', rule, {
+  valid: inProject([
+    { code: `${IMPORT}import { CONST_ROLES } from './roles'\naffirm(x, { isOneOf: CONST_ROLES })` },
+    // a dynamic list: nothing literal to fix
+    { code: `${IMPORT}import { LOADED_ROLES } from './roles'\naffirm(x, { isOneOf: LOADED_ROLES })` },
+    // \`let\` is out of scope (only const declarations are checked)
+    { code: `${IMPORT}import { LET_ROLES } from './roles'\naffirm(x, { isOneOf: LET_ROLES })` },
+    // a property of a widened object: not followed
+    { code: `${IMPORT}import { config } from './roles'\naffirm(x, { isOneOf: config.roles })` },
+    // imported, but not used in params
+    { code: `${IMPORT}import { ROLES } from './roles'\nconsole.log(ROLES)` },
+  ]),
+  invalid: inProject([
+    {
+      code: `${IMPORT}import { ROLES } from './roles'\naffirm(user.role, { isOneOf: ROLES })`,
+      errors: [{ message: importedWidened('ROLES', 'without `as const`', 5) }],
+    },
+    {
+      code: `${IMPORT}import { TYPED_ROLES } from './roles'\naffirm.assert(x, { containsAll: TYPED_ROLES })`,
+      errors: [{ messageId: 'importedWidened', data: { name: 'TYPED_ROLES', reason: 'with the type `string[]`', file: 'test/fixtures/typed-project/roles.ts', line: '7' } }],
+    },
+    // through a re-export, and through a namespace import
+    { code: `${IMPORT}import { RE_ROLES } from './reexport'\naffirm(x, { isOneOf: RE_ROLES })`, errors: [{ messageId: 'importedWidened' }] },
+    { code: `${IMPORT}import * as R from './roles'\naffirm(x, { isOneOf: R.ROLES })`, errors: [{ messageId: 'importedWidened', data: { name: 'ROLES', reason: 'without `as const`', file: 'test/fixtures/typed-project/roles.ts', line: '5' } }] },
+    // one report per declaration per file
+    { code: `${IMPORT}import { ROLES } from './roles'\naffirm(x, { isOneOf: ROLES })\naffirm(y, { containsAny: ROLES })`, errors: [{ messageId: 'importedWidened' }] },
+  ]),
+})

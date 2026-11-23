@@ -10,8 +10,18 @@ import { findVariable, sourcesOf, takesAffirmParams, type Node } from './shared'
 // Params are found two ways: by following what is passed to affirm() in this file, and by their
 // keys, wherever they are declared. The second covers params exported to other files, which a
 // one-file-at-a-time linter can't follow (design D10).
+//
+// With type information (typescript-eslint's `projectService`), a third way covers the rest: for an
+// imported name used in params, TypeScript finds its declaration in the other file. This is the only
+// way to catch bare lists (`isOneOf: ROLES`), which have no keys to recognise.
 
 const TS_FILE = /\.[cm]?tsx?$/
+
+/** `to` relative to `from` when it's inside it (for readable messages); otherwise unchanged. */
+function relativePath(from: string, to: string): string {
+  const base = from.endsWith('/') ? from : `${from}/`
+  return to.startsWith(base) ? to.slice(base.length) : to
+}
 
 /** Nodes that wrap an expression without changing what it is, for walking into params. */
 const WRAPPERS = new Set(['TSAsExpression', 'TSSatisfiesExpression', 'TSNonNullExpression', 'TSTypeAssertion'])
@@ -48,6 +58,59 @@ function inTypeQuery(identifier: Node): boolean {
     if (!(n.type as string).startsWith('TS') && n.type !== 'MemberExpression') return false
   }
   return false
+}
+
+// ---- Type-aware part -------------------------------------------------------------------------
+// The plugin can't import `typescript` (no runtime dependencies; TypeScript 7 has no JS API; the
+// client's version is unknown), so it only uses the checker the parser provides, and recognises
+// TypeScript syntax nodes by their properties instead of version-specific `SyntaxKind` numbers.
+
+/** `ts.SymbolFlags.Alias` (1 << 21), stable across TypeScript versions. */
+const SYMBOL_FLAGS_ALIAS = 2097152
+
+interface TsNode {
+  parent?: TsNode
+  getText(): string
+  getStart(): number
+  getSourceFile(): { fileName: string; getLineAndCharacterOfPosition(position: number): { line: number } }
+  [property: string]: unknown
+}
+interface TsSymbol {
+  flags: number
+  valueDeclaration?: TsNode
+  declarations?: TsNode[]
+}
+interface TsChecker {
+  getSymbolAtLocation(node: TsNode): TsSymbol | undefined
+  getAliasedSymbol(symbol: TsSymbol): TsSymbol
+}
+interface TypedServices {
+  program: { getTypeChecker(): TsChecker }
+  esTreeNodeToTSNodeMap: { get(node: Node): TsNode }
+}
+
+/** typescript-eslint's services, when the client lints with type information; otherwise `undefined`. */
+function typedServicesOf(sourceCode: SourceCode): TypedServices | undefined {
+  const services = sourceCode.parserServices as Partial<TypedServices> | undefined
+  return services?.program && services.esTreeNodeToTSNodeMap ? (services as TypedServices) : undefined
+}
+
+/**
+ * Why a declaration in another file widens its value, if it does: a list or object literal declared
+ * `const` without `as const` (or with a type annotation). `undefined` when it's fine or unknowable:
+ * `as const` / `<const>`, a call such as `loadRoles()`, `let`, or an ambient `.d.ts` declaration.
+ */
+function widenedBy(declaration: TsNode): string | undefined {
+  let init = declaration.initializer as TsNode | undefined
+  if (!init || !('name' in declaration)) return undefined
+  if (!/^const\b/.test(declaration.parent?.getText() ?? '')) return undefined // the VariableDeclarationList
+  if (declaration.type) return `with the type \`${(declaration.type as TsNode).getText()}\``
+  while ('type' in init && 'expression' in init) {
+    // `x as T`, `x satisfies T`, `<T>x`: `as const` / `<const>` keeps the literals
+    if ((init.type as TsNode).getText() === 'const') return undefined
+    init = init.expression as TsNode
+  }
+  return 'elements' in init || 'properties' in init ? 'without `as const`' : undefined
 }
 
 /** A property's static key: `isOneOf`, `'isOneOf'`. */
@@ -140,6 +203,9 @@ export const constParams: Rule.RuleModule = {
         'with the general type. Use `as const satisfies {{type}}` instead: it keeps both the type check and the exact values.',
       suggestConst: 'Add `as const` (`{{name}}` is also used outside affirm params; check those uses still compile).',
       suggestTyped: 'Replace the `{{type}}` type with `as const satisfies {{type}}`.',
+      importedWidened:
+        'affirm: `{{name}}` is used in params here, but it is declared {{reason}} in {{file}}:{{line}}, so TypeScript widened ' +
+        "its values ('a' → string) before affirm() sees them, and narrowing is silently lost. Fix that declaration: `= … as const`.",
     },
   },
 
@@ -147,6 +213,9 @@ export const constParams: Rule.RuleModule = {
     if (!TS_FILE.test(context.filename)) return {}
     const { sourceCode } = context
     const sources = sourcesOf(context)
+
+    const typed = typedServicesOf(sourceCode)
+    const reportedRemote = new Set<TsNode>() // declarations in other files, reported once per file
 
     const paramRefs = new Set<Node>() // identifiers used in a params position
     const seen = new Set<Scope.Variable>()
@@ -162,8 +231,31 @@ export const constParams: Rule.RuleModule = {
         for (const element of node.elements) walk((element?.type === 'SpreadElement' ? element.argument : element) as Node | null)
       } else if (node.type === 'Identifier') {
         paramRefs.add(node)
-        inspect(findVariable(sourceCode.getScope(node), node.name))
+        const variable = findVariable(sourceCode.getScope(node), node.name)
+        if (variable?.defs[0]?.type === 'ImportBinding' || variable === undefined) checkRemote(node)
+        else inspect(variable)
+      } else if (node.type === 'MemberExpression' && !node.computed) {
+        checkRemote(node.property as Node) // `P.orderParams` from `import * as P`
       }
+    }
+
+    /** With type information: a name declared in another file, widened where it's declared. */
+    function checkRemote(node: Node): void {
+      if (typed === undefined) return
+      const checker = typed.program.getTypeChecker()
+      const here = typed.esTreeNodeToTSNodeMap.get(node)
+      let symbol = checker.getSymbolAtLocation(here)
+      if (symbol !== undefined && (symbol.flags & SYMBOL_FLAGS_ALIAS) !== 0) symbol = checker.getAliasedSymbol(symbol)
+      const declaration = symbol?.valueDeclaration ?? symbol?.declarations?.[0]
+      if (declaration === undefined || declaration.getSourceFile() === here.getSourceFile() || reportedRemote.has(declaration)) return
+      const reason = widenedBy(declaration)
+      if (reason === undefined) return
+      reportedRemote.add(declaration)
+      const source = declaration.getSourceFile()
+      const file = relativePath(context.cwd, source.fileName)
+      const line = String(source.getLineAndCharacterOfPosition(declaration.getStart()).line + 1)
+      const name = node.type === 'Identifier' ? node.name : sourceCode.getText(node)
+      context.report({ node, messageId: 'importedWidened', data: { name, reason, file, line } })
     }
 
     /** Checks a `const` that holds params (once), then everything inside it: nested hoisted params need `as const` too. */
