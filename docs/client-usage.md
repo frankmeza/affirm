@@ -28,13 +28,56 @@ import { affirm, AffirmError, type AffirmParams, type Affirmed, type AffirmRepor
 
 `affirm` has no runtime dependencies. For narrowing to work, the client's `tsconfig.json` needs `"strict": true`, or at least `strictNullChecks`.
 
+**Requirements: TypeScript 5.9 or later** (declared as an optional peer dependency, so package managers warn about older versions). This is not cosmetic. On 5.8 and earlier, `affirm`'s types fail to resolve, and with the usual `skipLibCheck: true` nothing reports it. Narrowing then goes silently wrong: the `if` branch narrows nothing, and every `else` branch becomes `never`, so code that runs on real data type-checks as unreachable.
+
+### ESLint plugin (required)
+
+`affirm/eslint` enforces the one usage rule that TypeScript can't check: **never negate `affirm()`** (§9). Add it to the client's flat config (ESLint 9+):
+
+```js
+// eslint.config.js
+import affirm from 'affirm/eslint'
+
+export default [
+  // …your other configs, including the TypeScript parser for .ts files
+  affirm.configs.recommended, // 'affirm/no-negated-affirm': 'error'
+]
+```
+
+The rule only flags calls to the real `affirm` import, including aliased (`import { affirm as check }`) and namespace (`ns.affirm(…)`) imports.
+
+Both rules read one shared settings block. Setting `guards` is **strongly recommended**: without it, negated guards imported from other files can't be caught (§9).
+
+```js
+export default [
+  affirm.configs.recommended,
+  {
+    settings: {
+      affirm: {
+        guards: '^isValid',                 // the naming pattern for guards built on affirm (a regex string)
+        sources: ['affirm', '@/lib/affirm'], // only if your project re-exports affirm from its own module
+      },
+    },
+  },
+]
+```
+
+`affirm.configs.recommended` turns on two rules:
+
+| Rule | What it enforces |
+| --- | --- |
+| `affirm/no-negated-affirm` | No negated `affirm()`, directly or through variables, `&&` / `\|\|`, same-file wrappers, or (with `guards`) any call whose name matches the guard pattern |
+| `affirm/guard-naming` | With `guards` set: every named function whose whole body returns `affirm(…)` matches the pattern, and only such functions do. Does nothing without `guards` |
+
+The rules need no type information. `eslint` is an optional peer dependency, so projects that don't lint don't install it.
+
 ---
 
 ## 2. Which entry point to use
 
 | Situation | Use | Returns |
 | --- | --- | --- |
-| Branch on data (`if`, `filter`, early `return`) | `affirm(value, params)` | `boolean`; narrows `value` in the `if` branch |
+| Branch on data that passes (`if`, `filter`, ternaries) | `affirm(value, params)` | `boolean`; narrows `value` in the `if` branch. **Never negated** (§9) |
 | Data must be valid or the program can't go on (config, invariants, trusted internal data) | `affirm.assert(value, params, message?)` | `void`; throws `AffirmError`; narrows `value` for the rest of the scope |
 | You need to tell someone *why* it failed (400 responses, form errors, logs) | `affirm.explain(value, params)` | `{ ok, failures }`; never throws on bad data |
 
@@ -43,8 +86,9 @@ Rules of thumb:
 - **Default to `affirm()`.** It stops at the first failure, so it is the cheapest.
 - **Use `explain()` only where the failure details are used.** It runs every check and collects every failure.
 - **Use `assert()` where a failure is a bug or a fatal misconfiguration**, not where bad input is expected. Don't wrap `assert` in `try/catch` to get a boolean. Use `affirm()` instead.
+- **Handle the failure path with `explain()` or `assert()`, never with `!affirm()`** (§9).
 
-`explain` does not narrow. To get both the report and narrowing, call `explain` and then `affirm` (see §6.1), or catch `AffirmError` from `assert` (see §6.3).
+`explain` does not narrow. To get both the report and narrowing, call `explain`, handle `!report.ok`, then call `affirm.assert` (see §5.1). It can't fail at that point, and it narrows the rest of the scope. Alternatively, catch `AffirmError` from `assert` (see §6.3).
 
 ---
 
@@ -61,6 +105,7 @@ Read these before writing any params. Most bugs in generated `affirm` code break
 7. **Bad data returns `false`; mistakes in params throw `TypeError`.** Params are validated on every call, before any check runs, so a typo throws even when the value would have failed earlier. Never catch these errors. Fix the params.
 8. **Own keys only.** `shape`, `hasKey`, `hasKeys`, `hasAnyKey`, `hasOnlyKeys` and `hasPath` use `Object.hasOwn`. Getters on a class prototype are invisible to them, so use `satisfies` or `isInstanceOf` for class instances.
 9. **Evaluation order is fixed, not object-key order.** Type and nullish checks run first, then size, number and string checks, then structural checks (`shape`, `everyItem`, `isDeepEqual`, …), and `satisfies` runs last. You don't need to order keys defensively, and a `satisfies` predicate only runs after every other key has passed (under `affirm()`; under `explain()` it always runs).
+10. **Never negate `affirm()`.** `!affirm(…)`, `affirm(…) === false`, a negated variable holding its result, and a negated same-file wrapper (`!isOrder(x)`) are lint errors. Don't negate imported guards built on `affirm` either. The negation means "some check failed, for some reason", which is too broad to build on. Use `assert`, `explain`, or a positive check for the state you mean (§9).
 
 ---
 
@@ -279,8 +324,8 @@ export async function createUser(req: Request): Promise<Response> {
     return Response.json({ errors: report.failures.map((f) => ({ field: f.path, message: f.reason })) }, { status: 400 })
   }
 
-  // explain() does not narrow; this second call is cheap and gives the types.
-  if (!affirm(body, createUserParams)) throw new Error('unreachable')
+  // explain() does not narrow. assert() can't fail here, and narrows `body` from now on.
+  affirm.assert(body, createUserParams)
 
   return Response.json(await db.users.insert({ email: body.email, name: body.name, role: body.role }))
 }
@@ -318,15 +363,15 @@ async function fetchOrder(id: string) {
   const res = await fetch(`https://api.example.com/orders/${id}`)
   const data: unknown = await res.json()
 
-  if (!affirm(data, orderPayload)) {
-    // Only pay for explain() on the failure path.
-    logger.warn('unexpected order payload', { failures: affirm.explain(data, orderPayload).failures }) // safe to log: no raw values
-    return null
+  if (affirm(data, orderPayload)) {
+    data.status // 'pending' | 'shipped' | 'delivered'
+    data.items  // readonly { sku: string; qty: number }[]
+    return data
   }
 
-  data.status // 'pending' | 'shipped' | 'delivered'
-  data.items  // readonly { sku: string; qty: number }[]
-  return data
+  // Only pay for explain() on the failure path.
+  logger.warn('unexpected order payload', { failures: affirm.explain(data, orderPayload).failures }) // safe to log: no raw values
+  return null
 }
 ```
 
@@ -391,8 +436,8 @@ const orders = rows.filter(isValidOrder) // ValidOrder[]
 
 ```ts
 function greet(user: User | null) {
-  if (!affirm(user, { isPresent: true })) return 'Hello, guest'
-  user // User
+  if (affirm(user, { isNull: true })) return 'Hello, guest' // a positive check for the state you mean (§9)
+  user // User (isNull is exact, so the code after the early return is narrowed)
 
   if (affirm(user.nickname, { isType: 'string', isBlank: false })) {
     return `Hi, ${user.nickname}` // string
@@ -515,10 +560,10 @@ Most of these are also **compile errors** (§7.3), so they rarely reach runtime 
 
   `Refined` is a phantom marker. `string & Refined` can be assigned to `string`, passed to functions, returned and stored. Ignore it, and don't write it in your own type annotations. Use `Affirmed<…>` when you need to name the type.
 
-  The consequence for generated code: **after `if (!affirm(x, refinedParams)) return`, `x` is narrowed** (that is the `if` branch's complement path), but **inside an `else` block it is not**.
+  The consequence for generated code: put the code that relies on a refined narrowing **inside** `if (affirm(…)) { … }`, or use `affirm.assert`, which narrows the rest of the scope. Don't reach for a negated guard clause; that is banned (§9).
 
   ```ts
-  if (!affirm(x, { isType: 'string', isBlank: false })) return
+  affirm.assert(x, { isType: 'string', isBlank: false })
   x // string & Refined ✓
   ```
 
@@ -639,9 +684,104 @@ Each of these compiles and always returns `false`:
 
 ---
 
-## 9. Checklist for reviewing generated `affirm` code
+## 9. Never negate `affirm()`
+
+### What is banned
+
+```ts
+if (!affirm(value, params)) { … }        // ✗
+if (!(affirm(value, params))) { … }      // ✗
+if (affirm(value, params) === false) …   // ✗ also `== false`, `!== true`, `!= true`
+if (!(x != null && affirm(x, params))) … // ✗ negating an && / || that contains affirm()
+
+const ok = affirm(value, params)          // also `let` / `var` if never reassigned, and `affirm(a, p) && affirm(b, q)`
+if (!ok) { … }                           // ✗ a negated stored result
+
+const isOrder = (v: unknown) => affirm(v, orderParams)
+if (!isOrder(x)) { … }                   // ✗ a negated wrapper (a same-file function whose whole body returns affirm())
+```
+
+The `affirm/no-negated-affirm` lint rule (§1) reports each of these as an error and quotes the attempted code:
+
+```text
+affirm: `!affirm(body, createUserParams)` is not allowed. Negating affirm() is true when any
+check fails for any reason, so it tells you nothing reliable about the value. Use
+affirm.assert(value, params) to stop on bad data, affirm.explain(value, params) to handle
+failures by reason, or a positive check for the state you mean (e.g. `isNullish: true`).
+```
+
+### Why
+
+`affirm(value, params)` answers one precise question: "does `value` pass **every one** of these checks?" A `true` result describes one well-defined set of values, and TypeScript narrows to it.
+
+Its negation is everything else. Take `!affirm(order, { isPlainObject: true, shape: { total: { isFiniteNumber: true, isPositive: true } } })`. It is true when `order` is `null`, a string, an array, an object without `total`, a `total` of `'12'`, `NaN`, `0` or `-5`. Those are very different situations, and code written under the negation:
+
+- **can't rely on anything about the value.** The check is a thin gate made of many narrow conditions, and negating it throws all of them away at once;
+- **can't say what was wrong**, so the failure is handled blindly (a generic error, a silent `return null`, a wrong default);
+- **gets no type information** for refined checks, because TypeScript can't describe "any value except a valid one".
+
+This mostly bites in generated code. A negated guard clause (`if (!affirm(…)) return`) looks tidy, but the branch it guards is the vaguest part of the program.
+
+### What to write instead
+
+| You want to… | Write |
+| --- | --- |
+| Stop on bad data (a bug, a fatal misconfiguration) | `affirm.assert(value, params, 'message')`. It throws `AffirmError` with the full report and narrows `value` afterwards. |
+| Reject bad input with reasons (HTTP 400s, form errors) | `const report = affirm.explain(value, params); if (!report.ok) return badRequest(report.failures)`, then `affirm.assert(value, params)` to narrow (§5.1). |
+| Fall back quietly | Put the main path in the positive branch: `if (affirm(value, params)) return use(value)`, then `return fallback`. |
+| Handle a specific state such as "missing" | Check that state positively: `if (affirm(user, { isNull: true })) return guest()`. Exact checks narrow the code after an early return (§7.1). |
+| Exclude a specific value inside a check | Use the `not:` key: `affirm(role, { isType: 'string', not: { isOneOf: ['root'] } })`. It negates one named sub-check, not the whole gate, so it's allowed. |
+
+When `if (!affirm(…)) throw new X('message')` is flagged, the rule offers an editor suggestion to replace it with `affirm.assert(…, 'message')`. It's a suggestion, not an autofix, because the thrown error becomes an `AffirmError`.
+
+### Guards built on `affirm` follow the same rule
+
+A reusable guard such as `isValidOrder(v)` (§5.5) is `affirm` under another name, so `!isValidOrder(v)` is exactly as broad as `!affirm(v, params)`. Use guards in the positive branch, or call `affirm.assert` / `affirm.explain` with their params.
+
+ESLint checks one file at a time, so in the file that *imports* `isValidOrder`, nothing says it wraps `affirm`. The `guards` setting (§1) closes that gap with a **naming contract**:
+
+- **`affirm/guard-naming`** (where guards are defined): every named function whose whole body returns `affirm(…)` must match the pattern, and no other function defined in the project may match it.
+- **`affirm/no-negated-affirm`** (where guards are used): a negated call to any function matching the pattern is reported, wherever it was imported from.
+
+```ts
+// guards.ts
+export const isValidOrder = (v: unknown) => affirm(v, orderParams)  // ✓ matches '^isValid'
+export const checkUser = (v: unknown) => affirm(v, userParams)      // ✗ guard-naming: must match '^isValid'
+export function isValidEmail(s: string) { return s.includes('@') }  // ✗ guard-naming: '^isValid' is reserved for guards
+
+// handler.ts
+import { isValidOrder } from './guards'
+if (!isValidOrder(body)) return null                                // ✗ no-negated-affirm, even across files
+```
+
+The two halves cover each other: a guard can't escape the pattern, and nothing that isn't a guard can match it. Two limits remain:
+- Inline callbacks (`.filter((r) => affirm(r, p))`) have no name, so they aren't checked. They aren't reusable either.
+- Functions that only *match* the pattern but come from outside the project (a third-party `isValid…`) would be flagged when negated. Choose a pattern that won't collide, such as `^isValid[A-Z]`.
+
+Without `guards`, same-file wrappers are still caught. For imported guards it is then a convention only.
+
+### Escape hatch
+
+If a negation really is precise in context (for example, legacy code where you know only `null` reaches the branch), disable the rule for that line **and write the reason** after `--`:
+
+```ts
+// eslint-disable-next-line affirm/no-negated-affirm -- legacy handler: only null reaches this branch
+if (!affirm(x, params)) return // ✗ allowed only with the disable comment above
+```
+
+That keeps each exception deliberate, visible in review, and searchable (`grep -r "no-negated-affirm --"`). Never disable the rule for a whole file or project. Turn on `linterOptions: { reportUnusedDisableDirectives: 'error' }` so that stale disable comments get cleaned up.
+
+### Allowed, with care
+
+- **`!report.ok`** from `affirm.explain` is fine. It is the recommended form, because the failures are right there to use.
+- **`if (affirm(…)) { … } else { … }`** is allowed. Be aware that the `else` branch is just as broad as `!affirm`: treat it as "not valid, reason unknown". If the `else` needs the reason, use `explain`.
+
+---
+
+## 10. Checklist for reviewing generated `affirm` code
 
 - [ ] Value first, params second.
+- [ ] No negated `affirm()`: no `!affirm(…)`, `=== false`, `!ok`, or `!isSomeGuard(x)` for a guard built on `affirm`. `settings.affirm.guards` is set, and guards are named by it. Any `eslint-disable` for the rule has a reason after `--`. Failure paths use `assert`, `explain` or a positive check, and `affirm/no-negated-affirm` is enabled.
 - [ ] Optional fields use `anyOf: [{ isUndefined: true }, …]`. Nullable fields use `isNull`. Fields that can be both use `isNullish`.
 - [ ] `isPlainObject: true` is present when arrays must be rejected (`shape` and `isType: 'object'` accept arrays).
 - [ ] `everyItem` is paired with `isNotEmpty: true` when an empty array is invalid.

@@ -3,9 +3,10 @@ import { defineConfig } from 'vitest/config'
 export default defineConfig({
   build: {
     lib: {
-      entry: 'src/index.ts',
+      // `affirm` and the `affirm/eslint` plugin (design D8). They share no code.
+      entry: { index: 'src/index.ts', eslint: 'src/eslint/index.ts' },
       formats: ['es'],
-      fileName: 'index',
+      fileName: (_format, name) => `${name}.js`,
     },
     target: 'es2023',
     minify: false,

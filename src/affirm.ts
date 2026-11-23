@@ -23,6 +23,10 @@ export interface Affirm {
    * Data failures return `false`; programmer errors (unknown key, empty params, wrong param type,
    * async schema) throw `TypeError`. Use `affirm.explain` to see why a value failed.
    *
+   * Never negate the result (`!affirm(…)`, `affirm(…) === false`): it means "some check failed, for
+   * some reason", which is too broad to rely on. Use `affirm.assert`, `affirm.explain`, or a positive
+   * check for the state you mean. Enforced by the `affirm/no-negated-affirm` lint rule.
+   *
    * @example
    * if (affirm(order, { isPresent: true, shape: { total: { isType: 'number', isPositive: true } } })) {
    *   order.total // number

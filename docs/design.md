@@ -35,6 +35,8 @@ affirm.assert(value, params, message?) // → asserts value is …; throws Affir
 
 Exports: `affirm`, `AffirmError`, and types `AffirmParams`, `AffirmReport`, `AffirmFailure`, `Affirmed<V, P>` (the narrowed type, for users who need to name it).
 
+A second entry point, `affirm/eslint`, exports an ESLint 9 flat-config plugin with one rule, `no-negated-affirm` (D8). It has no runtime dependencies; `eslint` is an optional peer dependency.
+
 `affirm` is declared as a `const` with an explicit interface type so that `affirm.assert` can carry an `asserts` signature (TS requires explicit annotations on the call target for assertion functions).
 
 ## 4. Core semantics (the rules agents must be able to predict)
@@ -289,6 +291,8 @@ Detect via the `'~standard'` property. Vendor the `StandardSchemaV1` type defini
 | D5  | Reports carry no raw values                         | Logs + PII                                                         |
 | D6  | Refined-key brand for one-sided narrowing           | Prevents unsound `else` narrowing (§6.2); verify in M2             |
 | D7. | isPositive question                                 | use rule 5 ("the wrong kind of value fails")                       |
+| D8  | Negating `affirm()` is banned (`!affirm(…)`, `=== false`, `!ok`), enforced by the `affirm/no-negated-affirm` ESLint rule shipped as `affirm/eslint` | The negation of an AND of narrow checks is "something failed, for some reason": too broad to rely on, gives no reason and no narrowing. Use `assert`, `explain`, or a positive check. The `not:` key stays (it negates one named sub-check); `else` branches stay allowed but are documented as equally broad. Neither TypeScript nor the runtime can see a `!`, so a lint rule is the only enforcement point. The rule follows the result through `&&` / `\|\|`, variables assigned once, and same-file functions whose whole body returns it; imported guards are caught through a naming contract: with `settings.affirm.guards`, the `guard-naming` rule makes "returns affirm(…)" ⇔ "name matches the pattern" for functions defined in the project, and `no-negated-affirm` flags negated calls to matching names in any file (no type information needed). Exceptions use `eslint-disable-next-line … -- reason`. |
+| D9  | Supported TypeScript: **>= 5.9** (optional peer dependency); `test:types:ts59` checks the source, the tests and the published `.d.ts` with 5.9.3 | Checked 2026-11-23: 5.9.3, 6.0.3 and 7.0.2 pass every type test against the built `.d.ts`. 5.0, 5.4, 5.5 and 5.8 fail with "Type alias 'Narrow' circularly references itself" (the `AllInfos` tuple spreads loop back through `NarrowNested` for `shape` / `everyItem` / `anyOf`). Under `skipLibCheck` that is silent and unsound (every `else` branch becomes `never`). An interface indirection on `Narrow` did not fix it; supporting < 5.9 would mean restructuring how narrowing is assembled. Not worth it while 5.9 is the last 5.x and over a year old. |
 
 ## 13. Open questions
 

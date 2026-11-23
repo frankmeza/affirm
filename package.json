@@ -15,16 +15,36 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./eslint": {
+      "types": "./dist/eslint/index.d.ts",
+      "import": "./dist/eslint.js"
     }
   },
   "scripts": {
     "build": "pnpm run typecheck && vite build && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:types:ts59": "pnpm run build && node node_modules/typescript-5.9/bin/tsc --noEmit -p tsconfig.json && node node_modules/typescript-5.9/bin/tsc -p tsconfig.dts.json"
+  },
+  "peerDependencies": {
+    "eslint": ">=9",
+    "typescript": ">=5.9"
+  },
+  "peerDependenciesMeta": {
+    "eslint": {
+      "optional": true
+    },
+    "typescript": {
+      "optional": true
+    }
   },
   "devDependencies": {
+    "affirm-test-ts-parser": "file:test/fixtures/ts-parser",
+    "eslint": "^9.39.5",
     "typescript": "~7.0.2",
+    "typescript-5.9": "npm:typescript@5.9.3",
     "vite": "^8.3.6",
     "vitest": "^5.1.0"
   }

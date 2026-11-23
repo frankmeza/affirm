@@ -26,6 +26,18 @@ affirm.explain(value, params)           // { ok, failures }: every failure, with
 affirm.assert(value, params, message?)  // throws AffirmError on failure; narrows afterwards
 ```
 
+Requires TypeScript 5.9 or later. On older versions, narrowing silently breaks: every `else` branch becomes `never`.
+
+Lint client code with the bundled plugin. It enforces Rule 10, which TypeScript can't check:
+
+```js
+// eslint.config.js
+import affirm from 'affirm/eslint'
+export default [affirm.configs.recommended, { settings: { affirm: { guards: '^isValid' } } }]
+```
+
+`guards` is a naming contract: functions that just return `affirm(…)` must be named by it, and nothing else may be. That lets the rule catch `!isValidOrder(x)` even when the guard is imported.
+
 ## Rules
 
 1. **Value first, params second.** `affirm(value, { … })`, never `affirm({ value, … })`.
@@ -37,6 +49,7 @@ affirm.assert(value, params, message?)  // throws AffirmError on failure; narrow
 7. **Data failures return `false`; mistakes throw `TypeError`.** These throw: unknown keys (with a "did you mean" hint), empty params `{}`, wrong param types (`matches: 'abc'`), and async schemas. Don't wrap `affirm` in try/catch to handle bad data.
 8. **Equality is `===`.** `isOneOf` and `contains*` use SameValueZero (`NaN` matches `NaN`). Use `isDeepEqual` for structure.
 9. **Own keys only.** `hasKey`, `hasPath`, `shape` and friends use `Object.hasOwn`. For prototype getters or class instances, use `satisfies`.
+10. **Never negate `affirm()`.** `!affirm(…)`, `affirm(…) === false`, a negated variable holding its result (`!ok`), and a negated same-file wrapper (`!isOrder(x)`) are lint errors (`affirm/no-negated-affirm`). With `settings.affirm.guards`, negated guards imported from other files are lint errors too. Name every guard built on `affirm` by that pattern. `affirm` is an AND of narrow checks, so its negation means "something failed, for some reason", which is too broad to build on. Instead: `affirm.assert` to stop on bad data, `affirm.explain` (`if (!report.ok)`) to handle failures by reason, or a positive check for the state you mean (`if (affirm(x, { isNull: true })) return`). The `not:` key is fine: it negates one named sub-check.
 
 ## Keys at a glance
 
@@ -98,7 +111,7 @@ if (!report.ok) return badRequest(report.failures.map((f) => f.reason))
 
 ## Type narrowing
 
-- **Exact checks** narrow both branches. These are `isNull`, `isUndefined`, `isNullish`, `isDefined`, `isPresent`, `isType` with a primitive tag or guard, `isArray: true`, `isFunction: true`, `is`/`isOneOf` with literals, and `anyOf` of exact branches. Example: after `if (!affirm(x, { isPresent: true }))`, `x` is `null | undefined`.
+- **Exact checks** narrow both branches. These are `isNull`, `isUndefined`, `isNullish`, `isDefined`, `isPresent`, `isType` with a primitive tag or guard, `isArray: true`, `isFunction: true`, `is`/`isOneOf` with literals, and `anyOf` of exact branches. Example: with `x: string | null`, after `if (affirm(x, { isNull: true })) return`, `x` is `string`.
 - **Refined checks** (all others) narrow only the `if` branch. The type gets a phantom `& Refined` marker, which you can ignore: a `string & Refined` works anywhere a `string` does. The `else` branch keeps the full type, because a value can fail for other reasons.
 - **No narrowing at all** happens for refined checks whose result could be `null` or `undefined` (e.g. `isFalsy` on `string | null`). TypeScript can't express that soundly, so `affirm` returns a plain boolean. If you need narrowing, split the check: `affirm(x, { isPresent: true }) && affirm(x, { … })`.
 - **Contradictions are compile errors**, e.g. "`isNull: true` contradicts `isPresent: true`" or "`hasMinLength: 10` is greater than `hasMaxLength: 9`". So are unknown keys at any depth.
@@ -106,6 +119,7 @@ if (!report.ok) return badRequest(report.failures.map((f) => f.reason))
 
 ## Don't
 
+- **Don't negate `affirm()`** (Rule 10). No `if (!affirm(…)) return` guard clauses: use `affirm.assert`, `explain`, or put the main path in the positive branch.
 - **Don't use `affirm` to parse or transform** (coercion, defaults, trimming). Use a schema library, then `affirm` its result or pass the schema as `isType`.
 - **Don't write `isType: 'null'` or `isType: 'undefined'`** (they throw). Use `isNull` / `isUndefined`.
 - **Don't pass a class to `isType`.** Use `isInstanceOf`.
