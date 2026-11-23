@@ -14,10 +14,12 @@ if (affirm(order, { hasKey: 'total', shape: { total: { isType: 'number', isPosit
 
 Every key has hover docs with its exact pass condition and an example. When unsure what a key does, read its JSDoc in `AffirmParams`.
 
+For more detail, including scenario recipes, report formats, a narrowing table and pitfalls that compile but are wrong, see [`docs/client-usage.md`](docs/client-usage.md).
+
 ## API
 
 ```ts
-import { affirm, AffirmError } from 'assert' // package name is provisional
+import { affirm, AffirmError } from 'affirm'
 
 affirm(value, params)                   // boolean; narrows `value` in the if-branch
 affirm.explain(value, params)           // { ok, failures }: every failure, with paths

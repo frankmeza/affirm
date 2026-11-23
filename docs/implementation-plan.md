@@ -1,4 +1,4 @@
-# assert — Implementation Plan
+# affirm — Implementation Plan
 
 Source of truth: [design.md](./design.md). Section refs (§n) point there.
 
@@ -244,7 +244,7 @@ export type { Affirmed } from './types/affirmed'
 - Every `AffirmParams` key has JSDoc: a one-line meaning, "Passes when …", what it narrows to, and an `@example` using the key. The entry points (`affirm`, `explain`, `assert`), `AffirmError` and `Affirmed` have examples too.
 - `test/runtime/docs.test.ts` scans `src/types/*.ts` and checks, for every registry key: JSDoc present, a "Passes when" sentence, and an `@example` that mentions the key. It also checks that the scanned keys equal the registry keys, so a new key can't skip docs. `test/node-fs.d.ts` types the two `node:fs` calls instead of adding `@types/node`.
 - `AGENTS.md` (repo root, listed in `package.json` `files`): API, the 9 rules, key table, recipes, narrowing behaviour, and don'ts. Each recipe was type-checked once against the library.
-- Open: the package name `assert` shadows Node's built-in `assert` module (design Q1).
+- Resolved: the package is named `affirm` (design Q1), which avoids shadowing Node's built-in `assert` module.
 
 Within every milestone, work group-by-group: `types/<group>.ts` → `checks/<group>.ts` (`satisfies` keeps them in sync) → tests.
 
@@ -259,7 +259,7 @@ Within every milestone, work group-by-group: `types/<group>.ts` → `checks/<gro
 
 1. **Boolean kind-gated keys with `false`** (design D7): the kind gate wins. Wrong kind fails for both polarities (`isPositive: false` means "a number that is not positive"). `booleanLeaf()` runs `accepts` before applying D1. Applies to `isPositive`, `isNegative`, `isBlank`, `isInteger`, `isFiniteNumber`, `isNaN`, `isValidDate`, `isEmpty`/`isNotEmpty`.
 2. **Naming**: exported types/classes are PascalCase with the `Affirm` prefix: `AffirmError`, `AffirmParams`, `AffirmReport`, `AffirmFailure`, `Affirmed<V, P>`, and the call-signature interface `Affirm`. The runtime function is `affirm()`, with methods `affirm.explain` and `affirm.assert`.
-3. **Package name** stays `assert`, private, local use only (Q1).
+3. **Package name** is `affirm`, private, local use only (Q1).
 
 ## 10. Deferred (v1.1) — reminders
 

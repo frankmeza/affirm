@@ -1,0 +1,656 @@
+# Using `affirm` in a client project
+
+This guide shows how to use `affirm` in application code that depends on it, such as API handlers, config loading, fetch responses, form input and array filtering. It is written for AI coding agents that generate that code, and for the people who review it.
+
+[`AGENTS.md`](../AGENTS.md) is the short reference. This document goes deeper into the parts of the API that generated code uses most, and into the mistakes that compile but do the wrong thing. Every behaviour and error message quoted here was checked against the current source (TypeScript 7.0, `strict: true`).
+
+---
+
+## 1. Setup
+
+The package is ESM-only and is not published. Build it, then depend on it locally:
+
+```sh
+# in the affirm repo
+pnpm build
+```
+
+```jsonc
+// client package.json
+"dependencies": {
+  "affirm": "link:../affirm"
+}
+```
+
+```ts
+import { affirm, AffirmError, type AffirmParams, type Affirmed, type AffirmReport, type AffirmFailure } from 'affirm'
+```
+
+`affirm` has no runtime dependencies. For narrowing to work, the client's `tsconfig.json` needs `"strict": true`, or at least `strictNullChecks`.
+
+---
+
+## 2. Which entry point to use
+
+| Situation | Use | Returns |
+| --- | --- | --- |
+| Branch on data (`if`, `filter`, early `return`) | `affirm(value, params)` | `boolean`; narrows `value` in the `if` branch |
+| Data must be valid or the program can't go on (config, invariants, trusted internal data) | `affirm.assert(value, params, message?)` | `void`; throws `AffirmError`; narrows `value` for the rest of the scope |
+| You need to tell someone *why* it failed (400 responses, form errors, logs) | `affirm.explain(value, params)` | `{ ok, failures }`; never throws on bad data |
+
+Rules of thumb:
+
+- **Default to `affirm()`.** It stops at the first failure, so it is the cheapest.
+- **Use `explain()` only where the failure details are used.** It runs every check and collects every failure.
+- **Use `assert()` where a failure is a bug or a fatal misconfiguration**, not where bad input is expected. Don't wrap `assert` in `try/catch` to get a boolean. Use `affirm()` instead.
+
+`explain` does not narrow. To get both the report and narrowing, call `explain` and then `affirm` (see §6.1), or catch `AffirmError` from `assert` (see §6.3).
+
+---
+
+## 3. The rules that decide whether generated code is correct
+
+Read these before writing any params. Most bugs in generated `affirm` code break one of them.
+
+1. **Value first, params second.** `affirm(value, { … })`, never `affirm({ value, … })`.
+2. **Keys combine with AND.** The only OR is `anyOf: [{ … }, { … }]`.
+3. **An omitted key, or one set to `undefined`, is skipped.** This allows conditional params: `{ hasMinLength: strict ? 8 : undefined }`.
+4. **`true` asserts, `false` asserts the negation.** `isNull: false` means "not null". It never means "don't check".
+5. **No coercion.** `'10'` fails `isGreaterThan: 5`. `42` fails `hasMinLength: 1`. Parse first, then check.
+6. **The wrong kind of value fails both polarities.** `isPositive: false` means "a number that is not positive", so `'x'` fails it. The same goes for `isInteger`, `isFiniteNumber`, `isNaN`, `isBlank`, `isEmpty`, `isNotEmpty` and `isValidDate`. To say "not a positive number, or not a number at all", use `not: { isPositive: true }`.
+7. **Bad data returns `false`; mistakes in params throw `TypeError`.** Params are validated on every call, before any check runs, so a typo throws even when the value would have failed earlier. Never catch these errors. Fix the params.
+8. **Own keys only.** `shape`, `hasKey`, `hasKeys`, `hasAnyKey`, `hasOnlyKeys` and `hasPath` use `Object.hasOwn`. Getters on a class prototype are invisible to them, so use `satisfies` or `isInstanceOf` for class instances.
+9. **Evaluation order is fixed, not object-key order.** Type and nullish checks run first, then size, number and string checks, then structural checks (`shape`, `everyItem`, `isDeepEqual`, …), and `satisfies` runs last. You don't need to order keys defensively, and a `satisfies` predicate only runs after every other key has passed (under `affirm()`; under `explain()` it always runs).
+
+---
+
+## 4. The keys generated code uses most
+
+### 4.1 Presence and nullish
+
+```ts
+affirm(x, { isPresent: true })    // x !== null && x !== undefined
+affirm(x, { isDefined: true })    // x !== undefined (null passes!)
+affirm(x, { isNullish: true })    // x === null || x === undefined
+affirm(x, { isNull: false })      // x !== null (undefined passes)
+```
+
+- **`isPresent` is almost always what you want** for "has a value". `isDefined` lets `null` through.
+- `isTruthy` / `isFalsy` treat `0`, `''` and `NaN` as falsy. Don't use them for "has a value" on numbers or strings that may legitimately be `0` or `''`.
+- These keys are **exact**, so they narrow both branches (see §7).
+
+### 4.2 Runtime type
+
+```ts
+affirm(x, { isType: 'string' })       // typeof x === 'string'
+affirm(x, { isType: 'number' })       // typeof; NaN and Infinity pass! Add isFiniteNumber
+affirm(x, { isType: 'object' })       // non-null object, ARRAYS INCLUDED
+affirm(x, { isPlainObject: true })    // {} literal / JSON object / Object.create(null); not arrays, not class instances
+affirm(x, { isArray: true })
+affirm(x, { isInstanceOf: URL })      // classes go here, never in isType
+affirm(x, { isValidDate: true })      // a Date whose getTime() is not NaN
+affirm(x, { isInteger: true })        // Number.isInteger (implies number)
+affirm(x, { isFiniteNumber: true })   // Number.isFinite (implies number)
+```
+
+- `isType` accepts exactly `'string' | 'number' | 'boolean' | 'bigint' | 'symbol' | 'function' | 'object'`, a type guard, or a **synchronous** Standard Schema (Zod, Valibot, ArkType).
+- `isType: 'null'` and `isType: 'undefined'` throw: use `isNull` / `isUndefined`. `isType: SomeClass` throws: use `isInstanceOf`.
+- To accept "a JSON object", write `isPlainObject: true`, not `isType: 'object'`, which also accepts arrays, `Date`s and `Map`s.
+- To accept "a real number", write `isFiniteNumber: true`. It already implies `number`.
+
+### 4.3 Strings
+
+```ts
+affirm(name, { isType: 'string', isBlank: false })                 // the "required text field" idiom
+affirm(slug, { matches: /^[a-z0-9-]+$/, hasMaxLength: 64 })
+affirm(url,  { startsWith: 'https://' })
+affirm(text, { includes: 'TODO' })                                 // substring, strings only
+```
+
+- `isBlank: true` means the string is empty or whitespace only. `isBlank: false` means "a string with at least one non-whitespace character". It fails on non-strings, so it already implies `isType: 'string'`. Writing both is still clearer for readers and costs nothing.
+- `matches` requires a `RegExp`. A string param throws. `lastIndex` is reset before each test, so `/g` regexes are safe to reuse.
+- `hasLength` / `hasMinLength` / `hasMaxLength` count UTF-16 code units (`.length`), not characters or bytes.
+- Anchor your regexes (`^…$`). `matches: /\d+/` passes on `'abc1'`.
+
+### 4.4 Numbers
+
+```ts
+affirm(qty,   { isInteger: true, isAtLeast: 1 })
+affirm(price, { isFiniteNumber: true, isAtLeast: 0 })
+affirm(port,  { isInteger: true, isBetween: [1, 65535] })   // inclusive on both ends
+affirm(pct,   { isGreaterThan: 0, isLessThan: 100 })        // exclusive bounds
+affirm(cents, { isMultipleOf: 5 })
+```
+
+- Every number key fails on `NaN` and on non-numbers, including numeric strings.
+- `isBetween` is **inclusive**. For exclusive bounds, combine `isGreaterThan` and `isLessThan`.
+- `isPositive` means `> 0`. Zero is not positive. For "zero or more", use `isAtLeast: 0`.
+- `bigint` is not supported by the number keys.
+
+### 4.5 Equality and enums
+
+```ts
+affirm(status, { isOneOf: ['draft', 'published', 'archived'] })
+affirm(role,   { is: 'admin' })
+affirm(role,   { isNotOneOf: ['root', 'system'] })
+affirm(config, { isDeepEqual: { mode: 'strict', retries: 3 } })
+```
+
+- `is` uses `===`, and `isOneOf` uses SameValueZero (`NaN` matches `NaN`). Objects compare by reference. Use `isDeepEqual` to compare structure.
+- With literal params written inline, `isOneOf` narrows to the literal union (`'draft' | 'published' | 'archived'`). If you hoist the list into a variable, add `as const` or the narrowing widens to `string` (§8.1).
+
+### 4.6 Objects: `shape` is the workhorse
+
+`shape` checks named fields, each with its own params. This is how most generated code validates objects.
+
+```ts
+const ok = affirm(body, {
+  isPlainObject: true,
+  shape: {
+    email: { isType: 'string', matches: /^[^@\s]+@[^@\s]+$/ },
+    age: { isInteger: true, isBetween: [13, 130] },
+    role: { isOneOf: ['admin', 'member'] },
+  },
+})
+```
+
+What `shape` does:
+
+- **A missing field is checked as `undefined`.** So `shape: { email: { isType: 'string' } }` already requires `email` to be present. You don't need `hasKey: 'email'` as well.
+- **It only checks the fields you list.** Extra fields pass. To reject unknown fields, add `hasOnlyKeys: [...]`.
+- **It accepts arrays as well as objects**, and fails on `null` / primitives with a single failure (`expected an object or array, received null`). Add `isPlainObject: true` when arrays must be rejected.
+- **Fields nest without limit**: `shape: { user: { shape: { address: { shape: { zip: {...} } } } } }`.
+
+Optional and nullable fields:
+
+```ts
+shape: {
+  // optional: may be missing / undefined
+  nickname: { anyOf: [{ isUndefined: true }, { isType: 'string', hasMaxLength: 20 }] },
+  // nullable: present but may be null
+  middleName: { anyOf: [{ isNull: true }, { isType: 'string' }] },
+  // optional AND nullable
+  bio: { anyOf: [{ isNullish: true }, { isType: 'string' }] },
+}
+```
+
+Do not write `nickname: { isType: 'string' }` for an optional field. A missing field is `undefined`, so the check fails.
+
+Other object keys:
+
+```ts
+affirm(x, { hasKey: 'id' })                       // own key exists (value may be undefined)
+affirm(x, { hasKeys: ['id', 'name'] })            // all of them
+affirm(x, { hasAnyKey: ['email', 'phone'] })      // at least one
+affirm(x, { hasOnlyKeys: ['page', 'limit'] })     // no others (does NOT require these to be present)
+affirm(x, { hasPath: 'user.address.zip' })        // every segment exists; numeric segments index arrays: 'items.0.id'
+affirm(x, { isNotEmpty: true })                   // a plain object with ≥ 1 own enumerable key
+```
+
+Prefer `shape` over `hasKey` / `hasPath` when you also care about the field's value. `hasKey: 'x'` passes when `x` is present but `undefined`.
+
+### 4.7 Arrays: `everyItem` and friends
+
+```ts
+affirm(order.items, {
+  isNotEmpty: true,          // everyItem alone passes on []
+  everyItem: {
+    shape: {
+      sku: { isType: 'string', isBlank: false },
+      qty: { isInteger: true, isAtLeast: 1 },
+    },
+  },
+})
+
+affirm(tags,  { isArray: true, hasMaxLength: 10, everyItem: { isType: 'string' } })
+affirm(roles, { contains: 'admin' })                    // one item, SameValueZero
+affirm(roles, { containsAll: ['read', 'write'] })
+affirm(roles, { containsAny: ['admin', 'owner'] })
+affirm(users, { someItem: { shape: { isOwner: { is: true } } } })   // false on []
+```
+
+- **`everyItem` passes on an empty array.** Add `isNotEmpty: true` (or `hasMinLength: 1`) when at least one item is required.
+- **`contains*` are for arrays and `includes` is for strings.** Using the wrong one fails rather than throwing, which makes it a silent bug. Watch for it.
+- `contains` compares with SameValueZero, so `contains: { id: 1 }` never matches a different object. Use `someItem: { isDeepEqual: { id: 1 } }` or `someItem: { shape: { id: { is: 1 } } }`.
+- Failure paths include the index: `items[1].qty`.
+
+### 4.8 Composition: `anyOf`, `not`, `satisfies`
+
+```ts
+// OR
+affirm(id, { anyOf: [{ isType: 'string', isBlank: false }, { isInteger: true, isAtLeast: 1 }] })
+
+// NOT. The nested keys AND together first: not (a AND b)
+affirm(username, { not: { isOneOf: ['admin', 'root'] } })
+
+// Cross-field rules. The predicate receives `unknown`, so guard inside it
+const rangeFields = { shape: { min: { isFiniteNumber: true }, max: { isFiniteNumber: true } } } as const
+affirm(range, {
+  ...rangeFields,
+  satisfies: (r: unknown) => affirm(r, rangeFields) && r.min <= r.max, // annotate `r`: see §8.2
+})
+```
+
+- `satisfies` runs last. Under `affirm()`, it only runs once every other key in the same params has passed. Under `affirm.explain()`, every key runs, including `satisfies` on malformed input. Always guard inside the predicate rather than casting: a cast like `(r as Range).min` throws on `null` under `explain()`.
+- The predicate must return exactly `true`. Truthy values such as `1` or `'yes'` fail.
+- Errors thrown inside `satisfies` propagate to the caller. They are not turned into failures.
+- `anyOf: []`, `shape: {}` and `{}` throw because they would always pass.
+
+### 4.9 Existing schemas (Zod / Valibot / ArkType)
+
+```ts
+import { z } from 'zod'
+const Order = z.object({ id: z.string(), total: z.number().positive() })
+
+if (affirm(body, { isType: Order })) {
+  body.total // number
+}
+```
+
+- **Sync schemas only.** A schema whose `validate` returns a Promise (`z.string().refine(async …)`) throws `TypeError`.
+- **Validation only, no transformation.** `affirm` never returns the parsed value, so `.transform()`, `.default()` and coercion have no effect. Narrowing uses the schema's *input* type. If you need the transformed output, call `Order.parse(body)` yourself.
+- Schema issue messages are **not** copied into reports, because they can contain raw values. Each issue becomes a failure at the issue's path, with `expected: 'a value accepted by the zod schema'`.
+
+---
+
+## 5. Recipes by client-code scenario
+
+### 5.1 HTTP handler: validate a request body and return 400 with reasons
+
+```ts
+import { affirm } from 'affirm'
+
+const createUserParams = {
+  isPlainObject: true,
+  hasOnlyKeys: ['email', 'name', 'age', 'role'],
+  shape: {
+    email: { isType: 'string', matches: /^[^@\s]+@[^@\s]+$/, hasMaxLength: 254 },
+    name: { isType: 'string', isBlank: false, hasMaxLength: 100 },
+    age: { anyOf: [{ isUndefined: true }, { isInteger: true, isBetween: [13, 130] }] },
+    role: { isOneOf: ['admin', 'member'] },
+  },
+} as const
+
+export async function createUser(req: Request): Promise<Response> {
+  const body: unknown = await req.json()
+
+  const report = affirm.explain(body, createUserParams)
+  if (!report.ok) {
+    return Response.json({ errors: report.failures.map((f) => ({ field: f.path, message: f.reason })) }, { status: 400 })
+  }
+
+  // explain() does not narrow; this second call is cheap and gives the types.
+  if (!affirm(body, createUserParams)) throw new Error('unreachable')
+
+  return Response.json(await db.users.insert({ email: body.email, name: body.name, role: body.role }))
+}
+```
+
+### 5.2 Startup config: fail fast with `assert`
+
+```ts
+import { affirm } from 'affirm'
+
+affirm.assert(process.env.DATABASE_URL, { isType: 'string', startsWith: 'postgres://' }, 'DATABASE_URL must be a postgres:// URL')
+affirm.assert(process.env.PORT, { isType: 'string', matches: /^\d{2,5}$/ }, 'PORT must be numeric')
+
+const port = Number(process.env.PORT)
+affirm.assert(port, { isInteger: true, isBetween: [1, 65535] }, 'PORT out of range')
+
+// Both env vars are narrowed to `string` from here on.
+```
+
+Note the order: env vars are strings, so check the string, convert it, then check the number. Rule 5 applies: `isBetween` on the raw `'8080'` fails.
+
+### 5.3 Fetch response from a third-party API
+
+```ts
+const orderPayload = {
+  isPlainObject: true,
+  shape: {
+    id: { isType: 'string' },
+    status: { isOneOf: ['pending', 'shipped', 'delivered'] },
+    items: { isArray: true, everyItem: { shape: { sku: { isType: 'string' }, qty: { isInteger: true } } } },
+  },
+} as const
+
+async function fetchOrder(id: string) {
+  const res = await fetch(`https://api.example.com/orders/${id}`)
+  const data: unknown = await res.json()
+
+  if (!affirm(data, orderPayload)) {
+    // Only pay for explain() on the failure path.
+    logger.warn('unexpected order payload', { failures: affirm.explain(data, orderPayload).failures }) // safe to log: no raw values
+    return null
+  }
+
+  data.status // 'pending' | 'shipped' | 'delivered'
+  data.items  // readonly { sku: string; qty: number }[]
+  return data
+}
+```
+
+Hoist params that are used more than once into an `as const` constant (§8.1) instead of repeating them.
+
+### 5.4 Form validation: one error message per field
+
+`explain()` reports every failing key, so one field can produce several failures (for example `age` failing both `isInteger` and `isBetween`). Keep the first failure per path:
+
+```ts
+function fieldErrors(report: AffirmReport): Record<string, string> {
+  const errors: Record<string, string> = {}
+  for (const f of report.failures) errors[f.path] ??= f.reason
+  return errors
+}
+```
+
+`reason` is written for developers (`age: expected an integer, received number`). For end-user copy, map on `f.path` and `f.key` to your own messages:
+
+```ts
+const messages: Record<string, string> = {
+  'email:matches': 'Enter a valid email address',
+  'name:isBlank': 'Name is required',
+  'age:isBetween': 'You must be at least 13',
+}
+const text = messages[`${f.path}:${f.key}`] ?? 'Invalid value'
+```
+
+### 5.5 Filtering arrays
+
+An inline arrow works directly: TypeScript infers the type predicate, including for refined checks.
+
+```ts
+const raw: unknown[] = await loadRows()
+
+const names = raw.filter((r) => affirm(r, { isType: 'string', isBlank: false }))
+// (string & Refined)[]: usable anywhere string[] is
+
+const users = raw.filter((r) => affirm(r, { shape: { id: { isType: 'string' } } }))
+// ({ id: string } & Refined)[]
+
+const present = maybeNames.filter((n) => affirm(n, { isPresent: true }))
+// string[] (exact check, so no Refined marker)
+```
+
+For a reusable guard, name its type with `Affirmed`:
+
+```ts
+const orderParams = { shape: { id: { isType: 'string' }, total: { isFiniteNumber: true } } } as const
+type ValidOrder = Affirmed<unknown, typeof orderParams>
+
+export function isValidOrder(v: unknown): v is ValidOrder {
+  return affirm(v, orderParams)
+}
+
+const orders = rows.filter(isValidOrder) // ValidOrder[]
+```
+
+### 5.6 Narrowing a typed value (not `unknown`)
+
+`affirm` works on values that are already typed, and keeps the existing type:
+
+```ts
+function greet(user: User | null) {
+  if (!affirm(user, { isPresent: true })) return 'Hello, guest'
+  user // User
+
+  if (affirm(user.nickname, { isType: 'string', isBlank: false })) {
+    return `Hi, ${user.nickname}` // string
+  }
+  return `Hello, ${user.name}`
+}
+```
+
+With a typed input, `shape` keeps the original type instead of building a new one. On `User | null`, `{ shape: { id: { isType: 'string' } } }` narrows to `User & Refined`.
+
+### 5.7 Building params conditionally
+
+`undefined` means skip, so you can build params with ternaries:
+
+```ts
+function passwordParams(strict: boolean) {
+  return {
+    isType: 'string',
+    hasMinLength: strict ? 12 : 8,
+    matches: strict ? /[^A-Za-z0-9]/ : undefined,   // only in strict mode
+  } as const
+}
+```
+
+Never use `false` to mean "skip" a boolean key, because `false` is an assertion too (rule 4). A common slip:
+
+```ts
+{ isBlank: !allowBlank }               // ✗ when allowBlank is true this is `isBlank: true`: it REQUIRES a blank string
+{ isBlank: allowBlank ? undefined : false } // ✓ skip when blanks are allowed, otherwise require non-blank
+```
+
+---
+
+## 6. Reports and errors in detail
+
+### 6.1 `AffirmReport` / `AffirmFailure`
+
+```ts
+interface AffirmReport { ok: boolean; failures: AffirmFailure[] }
+
+interface AffirmFailure {
+  key: string        // the params key that failed: 'isBetween'
+  path: string       // '' at the root, 'email', 'items[1].qty', 'user.address.zip'
+  expected: string   // 'between 13 and 130 (inclusive)'
+  received: string   // a description of the value's type, never the value: 'number', 'string(len 4)', 'array(len 2)', 'object{3 keys}', 'null'
+  reason: string     // `${path}: expected ${expected}, received ${received}`
+  branches?: AffirmFailure[][] // anyOf only: each branch's failures
+}
+```
+
+Real output for the §5.1-style params against `{ email: 'nope', age: 12.5, role: 'owner', items: [{ sku: 'A', qty: 1 }, { sku: ' ', qty: 0 }], nickname: 42 }`:
+
+```text
+email: expected a string matching /^[^@\s]+@[^@\s]+$/, received string(len 4)
+age: expected an integer, received number
+age: expected between 13 and 130 (inclusive), received number
+role: expected one of ["admin", "member"], received string(len 5)
+items[1].sku: expected a non-blank string, received string(len 1)
+items[1].qty: expected >= 1, received number
+nickname: expected any of 2 branches to pass, received number
+```
+
+The `nickname` failure's `branches` holds `[[isUndefined failure], [isType failure, hasMaxLength failure]]`. The top-level `reason` of an `anyOf` failure is generic, so look in `branches` if you need to say which alternative came closest.
+
+### 6.2 Logging safety
+
+`received` never contains the checked value, so reports are safe to log even when the data holds PII. **Params can appear**, though: short string params are quoted in `expected` (`=== "admin"`, `one of ["admin", "member"]`). Don't put secrets in params. For example, never write `affirm(token, { is: process.env.API_KEY })`, because the key would end up in `expected`.
+
+### 6.3 `AffirmError`
+
+```ts
+try {
+  affirm.assert(body, createUserParams)
+} catch (error) {
+  if (error instanceof AffirmError) return badRequest(error.report.failures)
+  throw error
+}
+```
+
+- `error.name === 'AffirmError'` and `error.report` is the full `AffirmReport`.
+- The default message is `affirm.assert failed: ` followed by the first three reasons and `(+N more)`. If you pass a `message` argument, it replaces the default message entirely, and the details remain in `error.report`.
+- Use `instanceof AffirmError` to tell data failures apart from `TypeError`s (mistakes in params) and anything else.
+
+### 6.4 Mistakes that throw `TypeError`
+
+These are bugs in the params, not in the data. The messages are designed to tell you how to fix them:
+
+```text
+affirm: unknown check `isTypo`. Did you mean `isType`?
+affirm: unknown check `hasMinLenght`. Did you mean `hasMinLength`?
+affirm: params are empty; `{}` would always pass
+affirm: invalid param for `matches`: expected a RegExp (received "abc"); use `includes` for plain text
+affirm: invalid param for `isType`: expected a type tag; use `isNull: true` instead of `isType: 'null'`
+affirm: invalid param for `isType`: expected a type tag, guard or schema; use `isInstanceOf: Map` for classes
+```
+
+Other cases that throw: `hasMinLength: -1` or `hasMinLength: '3'`, `isBetween: [10, 1]`, `isMultipleOf: 0`, `anyOf: []`, `shape: {}`, and async schemas.
+
+Most of these are also **compile errors** (§7.3), so they rarely reach runtime in TypeScript code. They do when params are built from untyped data or cast with `as any`.
+
+---
+
+## 7. Type narrowing: what you can rely on
+
+### 7.1 Exact vs refined
+
+- **Exact checks narrow both branches.** These are `isNull`, `isUndefined`, `isNullish`, `isDefined`, `isPresent`, `isType` with a primitive tag (not `'object'`) or a type guard, `isArray: true`, `isFunction: true`, `is` / `isOneOf` with literal params, and `anyOf` when every branch is exact.
+
+  ```ts
+  declare const s: string | null
+  if (affirm(s, { isPresent: true })) { s /* string */ } else { s /* null */ }
+  ```
+
+- **Refined checks narrow only the `if` branch.** That is every other key. The `if` branch gets `T & Refined`, and the `else` branch keeps the full type, because a string can fail `hasMinLength: 3` and still be a string.
+
+  ```ts
+  declare const x: string | number
+  if (affirm(x, { isType: 'string', hasMinLength: 3 })) { x /* string & Refined */ } else { x /* string | number */ }
+  ```
+
+  `Refined` is a phantom marker. `string & Refined` can be assigned to `string`, passed to functions, returned and stored. Ignore it, and don't write it in your own type annotations. Use `Affirmed<…>` when you need to name the type.
+
+  The consequence for generated code: **after `if (!affirm(x, refinedParams)) return`, `x` is narrowed** (that is the `if` branch's complement path), but **inside an `else` block it is not**.
+
+  ```ts
+  if (!affirm(x, { isType: 'string', isBlank: false })) return
+  x // string & Refined ✓
+  ```
+
+### 7.2 When `affirm` returns a plain `boolean`
+
+If a refined check's narrowed type could still include `null` or `undefined`, TypeScript can't express the narrowing soundly, so `affirm` falls back to `boolean` and does not narrow:
+
+```ts
+declare const name: string | undefined
+if (affirm(name, { isFalsy: true })) { name /* still string | undefined */ }
+```
+
+To get narrowing, split the check: `affirm(x, { isPresent: true }) && affirm(x, { … })`.
+
+### 7.3 Compile-time errors you will see
+
+Unknown keys (at any depth) and contradictions show up as **"No overload matches this call."** The useful part is the `__affirmError` text further down the error:
+
+```text
+Property '__affirmError' is missing … { __affirmError: "`isNull: true` contradicts `isPresent: true`" }
+Property '__affirmError' is missing … { __affirmError: "`isType: 'string'` contradicts `isPositive` (a number key)" }
+```
+
+Other detected contradictions include `hasMinLength` greater than `hasMaxLength`, `isEmpty` with `isNotEmpty`, `isArray: true` with a non-`'object'` `isType` tag, and `isTruthy` with `isFalsy`. Contradictions are checked inside each nested params object, but not across `anyOf` branches.
+
+### 7.4 What each common pattern narrows to (on `unknown`)
+
+| Params | `if` branch type |
+| --- | --- |
+| `{ isType: 'string' }` | `string` |
+| `{ isType: 'string', isBlank: false }` | `string & Refined` |
+| `{ isOneOf: ['a', 'b'] }` (inline) | `'a' \| 'b'` |
+| `{ isArray: true }` | `readonly unknown[]` |
+| `{ isArray: true, everyItem: { isType: 'string' } }` | `readonly string[] & Refined` |
+| `{ isPlainObject: true }` | `Record<string, unknown> & Refined` |
+| `{ hasKey: 'id' }` | `Record<'id', unknown> & Refined` |
+| `{ hasPath: 'a.b' }` | `{ a: { b: unknown } } & Refined` |
+| `{ shape: { id: { isType: 'string' }, n: { isOneOf: [1, 2] } } }` | `{ id: string; n: 1 \| 2 } & Refined` |
+| `{ shape: { x: { anyOf: [{ isUndefined: true }, { isType: 'string' }] } } }` | `{ x: string \| undefined } & Refined` |
+| `{ isInstanceOf: Map }` | `Map<unknown, unknown> & Refined` |
+| `{ isType: isUuid }` (a guard) | the guard's type |
+| `{ isType: ZodSchema }` | the schema's input type `& Refined` |
+| `{ satisfies: namedGuard }` | the guard's type `& Refined` |
+
+---
+
+## 8. Pitfalls that compile but are wrong
+
+### 8.1 Hoisted params need `as const`
+
+Inline params get literal types automatically. Params stored in a variable do not:
+
+```ts
+const p = { isType: 'string', hasMinLength: 3 }
+affirm(x, p)
+// ✗ compile error: Type 'string' is not assignable to type '… | TypeTag | undefined'
+
+const q = { isOneOf: ['a', 'b'] }
+affirm(x, q) // compiles, but narrows to `string & Refined`, not 'a' | 'b'
+
+const r = { isType: 'string', hasMinLength: 3, isOneOf: ['a', 'b'] } as const   // ✓
+const s = { isType: 'string' } as const satisfies AffirmParams                    // ✓ and checked where it is declared
+```
+
+**Don't annotate params as `AffirmParams`** (`const p: AffirmParams = { … }`). The literal types are lost and nothing narrows. Use `as const`, or `as const satisfies AffirmParams`.
+
+### 8.2 Inline functions in params need an annotated parameter
+
+If **any** function written inline in the params has an unannotated parameter, narrowing is switched off for the **whole call**. That covers `satisfies`, `isType` guards, and functions nested inside `shape`, `everyItem` and `anyOf`. The call still compiles and still checks correctly at runtime. Only the types are lost.
+
+```ts
+affirm(x, { isType: 'string', satisfies: (v) => v !== 'x' })          // ✗ x stays `unknown`
+affirm(x, { isType: 'string', satisfies: (v: unknown) => v !== 'x' }) // ✓ x: string & Refined
+
+affirm(x, { satisfies: (v): v is Date => v instanceof Date })          // ✗ no narrowing
+affirm(x, { isType: (v): v is Date => v instanceof Date })             // ✗ no narrowing either
+affirm(x, { satisfies: (v: unknown): v is Date => v instanceof Date }) // ✓ Date & Refined
+
+const isDate = (v: unknown): v is Date => v instanceof Date
+affirm(x, { satisfies: isDate })                                       // ✓ named functions are always fine
+```
+
+The rule: **write `(v: unknown) =>` for every inline function in params**, or use a named function.
+
+Why this happens: an unannotated arrow makes TypeScript infer the params type in two passes. In the first pass, the narrowing overload's soundness gate (§7.2) sees a not-yet-inferred `P`, so TypeScript rejects that overload and uses the plain-`boolean` one instead.
+
+### 8.3 Don't destructure `assert`
+
+```ts
+const { assert } = affirm
+assert(x, { isType: 'string' })
+// ✗ TS2775: Assertions require every name in the call target to be declared with an explicit type annotation.
+```
+
+Always call it as `affirm.assert(…)`. The same applies to re-exporting it under another name: `export const check = affirm.assert` loses the assertion signature unless you annotate it with `Affirm['assert']`.
+
+### 8.4 Silent failures from using the wrong kind of key
+
+Each of these compiles and always returns `false`:
+
+| Wrong | Right |
+| --- | --- |
+| `affirm(tags, { includes: 'x' })` on an array | `contains: 'x'` |
+| `affirm(text, { contains: 'x' })` on a string | `includes: 'x'` |
+| `affirm(req.query.page, { isInteger: true })` (query values are strings) | `matches: /^\d+$/`, then `Number()` and check again |
+| `affirm(input, { isEmpty: true })` meaning "null or empty" | `anyOf: [{ isNullish: true }, { isEmpty: true }]` |
+| `affirm(maybe, { isPositive: false })` meaning "not a positive number, or not a number" | `not: { isPositive: true }` |
+| `affirm(obj, { hasMinLength: 1 })` on a plain object | `isNotEmpty: true` (size keys other than `isEmpty` / `isNotEmpty` don't accept plain objects) |
+| `affirm(user, { shape: { name: { isType: 'string' } } })` on a class instance with a `get name()` | `isInstanceOf: User`, or `satisfies` |
+| `shape: { nickname: { isType: 'string' } }` for an optional field | `anyOf: [{ isUndefined: true }, { isType: 'string' }]` |
+
+### 8.5 Things `affirm` deliberately doesn't do
+
+- **No parsing, coercion, trimming or defaults.** `affirm` never changes the value. Parse first (`Number(…)`, `new Date(…)`, a schema's `.parse`), then check the result.
+- **No async.** Await first, then check.
+- **No custom messages per key.** Map `path` / `key` to your own messages (§5.4).
+- **No `bigint` comparisons.** `isGreaterThan` and the other number keys need a `number`.
+
+---
+
+## 9. Checklist for reviewing generated `affirm` code
+
+- [ ] Value first, params second.
+- [ ] Optional fields use `anyOf: [{ isUndefined: true }, …]`. Nullable fields use `isNull`. Fields that can be both use `isNullish`.
+- [ ] `isPlainObject: true` is present when arrays must be rejected (`shape` and `isType: 'object'` accept arrays).
+- [ ] `everyItem` is paired with `isNotEmpty: true` when an empty array is invalid.
+- [ ] No `includes` on arrays and no `contains` on strings.
+- [ ] Numeric checks run on numbers, not on numeric strings from env vars, query strings or form fields.
+- [ ] `isFiniteNumber` or `isInteger` is used instead of bare `isType: 'number'` when `NaN` / `Infinity` must be rejected.
+- [ ] Hoisted params use `as const`, and are never annotated as `AffirmParams`.
+- [ ] Every inline function in params annotates its parameter: `(v: unknown) =>`.
+- [ ] `affirm.assert` is called as a method, never destructured.
+- [ ] `explain()` is used only where its failures are used, and `affirm()` everywhere else.
+- [ ] No `try/catch` around `affirm()` / `explain()`. `TypeError`s are bugs to fix.
+- [ ] No secrets in params.

@@ -92,7 +92,7 @@ function assertOrThrow(value: unknown, params: AffirmParams, message?: string): 
  * See `AffirmParams` for every key, and `AGENTS.md` for the usage guide.
  *
  * @example
- * import { affirm } from 'assert'
+ * import { affirm } from 'affirm'
  *
  * if (affirm(user, { isPresent: true, hasKey: 'email' })) { … }
  * affirm.explain(user, { shape: { email: { matches: /@/ } } }) // { ok, failures }
