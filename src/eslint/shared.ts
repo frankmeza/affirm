@@ -98,23 +98,38 @@ function importKind(variable: Scope.Variable | undefined, sources: ReadonlySet<s
   return imported === 'affirm' ? 'named' : undefined
 }
 
-/** `affirm(…)`, `check(…)` (aliased import) or `ns.affirm(…)` / `ns['affirm'](…)` (namespace import). */
-export function isAffirmCall(node: Node, sourceCode: SourceCode, sources: ReadonlySet<string>): boolean {
-  if (node.type !== 'CallExpression') return false
-  const callee = node.callee as Node
-  const scope = sourceCode.getScope(node)
-  if (callee.type === 'Identifier') return importKind(findVariable(scope, callee.name), sources) === 'named'
-  if (callee.type === 'MemberExpression' && callee.object.type === 'Identifier') {
-    const property = callee.computed
-      ? callee.property.type === 'Literal'
-        ? callee.property.value
-        : undefined
-      : callee.property.type === 'Identifier'
-        ? callee.property.name
-        : undefined
-    return property === 'affirm' && importKind(findVariable(scope, callee.object.name), sources) === 'namespace'
+/** `affirm`, `check` (aliased import) or `ns.affirm` / `ns['affirm']` (namespace import): the affirm function itself. */
+function isAffirmReference(expr: Node, scope: Scope.Scope, sources: ReadonlySet<string>): boolean {
+  if (expr.type === 'Identifier') return importKind(findVariable(scope, expr.name), sources) === 'named'
+  if (expr.type === 'MemberExpression' && expr.object.type === 'Identifier') {
+    return memberName(expr) === 'affirm' && importKind(findVariable(scope, expr.object.name), sources) === 'namespace'
   }
   return false
+}
+
+/** `x.name` or `x['name']`: the property name, if it is static. */
+function memberName(expr: Node): string | undefined {
+  if (expr.type !== 'MemberExpression') return undefined
+  if (!expr.computed) return expr.property.type === 'Identifier' ? expr.property.name : undefined
+  return expr.property.type === 'Literal' && typeof expr.property.value === 'string' ? expr.property.value : undefined
+}
+
+/** `affirm(…)`, `check(…)` (aliased import) or `ns.affirm(…)` / `ns['affirm'](…)` (namespace import). */
+export function isAffirmCall(node: Node, sourceCode: SourceCode, sources: ReadonlySet<string>): boolean {
+  return node.type === 'CallExpression' && isAffirmReference(node.callee as Node, sourceCode.getScope(node), sources)
+}
+
+/** Any call that takes affirm params second: `affirm(v, p)`, `affirm.assert(v, p, msg)`, `affirm.explain(v, p)`. */
+export function takesAffirmParams(node: Node, sourceCode: SourceCode, sources: ReadonlySet<string>): boolean {
+  if (node.type !== 'CallExpression') return false
+  if (isAffirmCall(node, sourceCode, sources)) return true
+  const callee = node.callee as Node
+  const method = memberName(callee)
+  return (
+    callee.type === 'MemberExpression' &&
+    (method === 'assert' || method === 'explain') &&
+    isAffirmReference(callee.object as Node, sourceCode.getScope(node), sources)
+  )
 }
 
 export function truncate(text: string): string {

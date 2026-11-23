@@ -63,12 +63,13 @@ export default [
 ]
 ```
 
-`affirm.configs.recommended` turns on two rules:
+`affirm.configs.recommended` turns on three rules:
 
 | Rule | What it enforces |
 | --- | --- |
 | `affirm/no-negated-affirm` | No negated `affirm()`, directly or through variables, `&&` / `\|\|`, same-file wrappers, or (with `guards`) any call whose name matches the guard pattern |
 | `affirm/guard-naming` | With `guards` set: every named function whose whole body returns `affirm(…)` matches the pattern, and only such functions do. Does nothing without `guards` |
+| `affirm/const-params` | TypeScript files: params declared apart from the call are `as const`, so they keep their exact values (§8.1). Autofixable |
 
 The rules need no type information. `eslint` is an optional peer dependency, so projects that don't lint don't install it.
 
@@ -613,9 +614,9 @@ Other detected contradictions include `hasMinLength` greater than `hasMaxLength`
 
 ## 8. Pitfalls that compile but are wrong
 
-### 8.1 Hoisted params need `as const`
+### 8.1 Hoisted params need `as const` (enforced, autofixable)
 
-Inline params get literal types automatically. Params stored in a variable do not:
+Inline params get literal types automatically. Params stored in a variable do not. TypeScript widens them where they are declared (`'a'` → `string`, `true` → `boolean`), before `affirm` ever sees them, so `affirm` can't recover the exact values. The runtime check still compares the exact strings; only the narrowing is lost:
 
 ```ts
 const p = { isType: 'string', hasMinLength: 3 }
@@ -629,7 +630,29 @@ const r = { isType: 'string', hasMinLength: 3, isOneOf: ['a', 'b'] } as const   
 const s = { isType: 'string' } as const satisfies AffirmParams                    // ✓ and checked where it is declared
 ```
 
-**Don't annotate params as `AffirmParams`** (`const p: AffirmParams = { … }`). The literal types are lost and nothing narrows. Use `as const`, or `as const satisfies AffirmParams`.
+**Don't annotate params as `AffirmParams`** (`const p: AffirmParams = { … }`), and don't cast them (`{ … } as AffirmParams`). The literal types are lost and nothing narrows. Use `as const`, or `as const satisfies AffirmParams`.
+
+**The `affirm/const-params` lint rule enforces this** in TypeScript files (§1). It follows every variable that ends up in params:
+- params passed to `affirm()`, `affirm.assert()` or `affirm.explain()`;
+- pieces inside params (`isOneOf: roles`, `shape: { id: idParams }`, `...baseParams`), including pieces of other hoisted params.
+
+`eslint --fix` adds `as const` at the declaration (before any `satisfies`). It only autofixes when the variable is used purely as params, so making it read-only can't break anything. If the variable is also used elsewhere (`roles.push(…)`), you get the same fix as an editor suggestion to apply after checking. Typed declarations get a suggestion to switch to `as const satisfies <Type>`.
+
+```ts
+const roles = ['admin', 'member']   // ✗ affirm/const-params: params `roles` need `as const` … (autofix adds it)
+affirm(user.role, { isOneOf: roles })
+```
+
+**Params exported to other files are covered too.** ESLint checks one file at a time, so the rule also recognises params by their keys where they are declared, whether or not that file calls `affirm`. An object literal counts as params when every key is a check name and at least one key, here or in its nested params, is distinctive (an `isX` / `hasX` check, `containsAll`, `everyItem`, …):
+
+```ts
+// params.ts (no affirm() call in this file)
+export const orderParams = { isPlainObject: true, shape: { … } }   // ✗ recognised by its keys; autofix adds `as const`
+export const manifest = { matches: ['<all_urls>'] }                // ✓ `matches` alone is an ordinary word, not params
+export const ROLES = ['admin', 'member']                            // not recognised: a bare list has no keys
+```
+
+The remaining gap is **bare lists exported from another file** (`isOneOf: ROLES` where `ROLES` is imported). A list has no keys to recognise, so the rule only catches one when it's declared in the same file as its use. Write lists that are used in params `as const` where they're declared.
 
 ### 8.2 Inline functions in params need an annotated parameter
 
@@ -789,7 +812,7 @@ That keeps each exception deliberate, visible in review, and searchable (`grep -
 - [ ] No `includes` on arrays and no `contains` on strings.
 - [ ] Numeric checks run on numbers, not on numeric strings from env vars, query strings or form fields.
 - [ ] `isFiniteNumber` or `isInteger` is used instead of bare `isType: 'number'` when `NaN` / `Infinity` must be rejected.
-- [ ] Hoisted params use `as const`, and are never annotated as `AffirmParams`.
+- [ ] Hoisted params use `as const`, and are never annotated or cast as `AffirmParams` (`affirm/const-params`; `eslint --fix` adds it).
 - [ ] Every inline function in params annotates its parameter: `(v: unknown) =>`.
 - [ ] `affirm.assert` is called as a method, never destructured.
 - [ ] `explain()` is used only where its failures are used, and `affirm()` everywhere else.

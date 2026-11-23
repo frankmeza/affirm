@@ -1,4 +1,5 @@
 import type { ESLint, Linter } from 'eslint'
+import { constParams } from './const-params'
 import { guardNaming } from './guard-naming'
 import { noNegatedAffirm } from './no-negated-affirm'
 
@@ -18,15 +19,15 @@ import { noNegatedAffirm } from './no-negated-affirm'
  */
 const plugin = {
   meta: { name: 'affirm/eslint' },
-  rules: { 'no-negated-affirm': noNegatedAffirm, 'guard-naming': guardNaming },
+  rules: { 'no-negated-affirm': noNegatedAffirm, 'guard-naming': guardNaming, 'const-params': constParams },
   configs: {} as { recommended: Linter.Config },
 } satisfies ESLint.Plugin
 
 plugin.configs.recommended = {
   name: 'affirm/recommended',
   plugins: { affirm: plugin },
-  // guard-naming does nothing until `settings.affirm.guards` is set.
-  rules: { 'affirm/no-negated-affirm': 'error', 'affirm/guard-naming': 'error' },
+  // guard-naming does nothing until `settings.affirm.guards` is set; const-params only checks TypeScript files.
+  rules: { 'affirm/no-negated-affirm': 'error', 'affirm/guard-naming': 'error', 'affirm/const-params': 'error' },
 }
 
 export default plugin
