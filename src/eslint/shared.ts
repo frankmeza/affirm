@@ -77,7 +77,7 @@ export function wrapperOf(value: Node): Node | undefined {
   return isFunction ? fn : undefined
 }
 
-function findVariable(scope: Scope.Scope | null, name: string): Scope.Variable | undefined {
+export function findVariable(scope: Scope.Scope | null, name: string): Scope.Variable | undefined {
   for (let s = scope; s !== null; s = s.upper) {
     const variable = s.set.get(name)
     if (variable !== undefined) return variable
@@ -133,10 +133,14 @@ export function usageText(sourceCode: SourceCode, node: Node): string {
  * - `sources`: module specifiers that export `affirm` (default `['affirm']`). Add your own re-export.
  * - `guards`: a regular expression (as a string) that every function returning `affirm(…)` must match,
  *   and that only such functions may match. With it, negated calls to imported guards are caught too.
+ * - `guardModules`: import prefixes that are your own code, for path aliases such as `'@/'`.
+ *   Guards are recognised when defined in the file, imported from a relative path, or imported from
+ *   one of these prefixes; anything imported from a package (a third-party `isValid…`) is not a guard.
  */
 export interface AffirmSettings {
   sources?: string[]
   guards?: string
+  guardModules?: string[]
 }
 
 function settingsOf(context: Rule.RuleContext): AffirmSettings {
@@ -167,6 +171,40 @@ export function guardPatternOf(context: Rule.RuleContext): RegExp | undefined {
   } catch (error) {
     throw new Error(`affirm: \`settings.affirm.guards\` is not a valid regular expression: ${(error as Error).message}`)
   }
+}
+
+/** `guardModules` as a list of prefixes (default none: only relative imports count as project code). */
+export function guardModulesOf(context: Rule.RuleContext): readonly string[] {
+  const modules = settingsOf(context).guardModules ?? []
+  if (!Array.isArray(modules) || modules.some((m) => typeof m !== 'string' || m === '')) {
+    throw new Error("affirm: `settings.affirm.guardModules` must be an array of import prefixes, e.g. ['@/']")
+  }
+  return modules
+}
+
+/** The module an imported variable comes from, or `undefined` when it isn't an import. */
+export function importSourceOf(variable: Scope.Variable | undefined): string | undefined {
+  const def = variable?.defs[0]
+  if (def?.type !== 'ImportBinding') return undefined
+  const source = (def.parent as { source?: { value?: unknown } } | null)?.source?.value
+  return typeof source === 'string' ? source : undefined
+}
+
+/**
+ * Whether a call that matches the guard pattern can be one of the project's guards: defined in this
+ * file, imported from a relative path or a `guardModules` prefix, or a method on a local value.
+ * Calls into packages (`import validator from 'validator'; validator.isValidX()`) are not.
+ */
+export function isProjectCall(call: Node, sourceCode: SourceCode, guardModules: readonly string[]): boolean {
+  if (call.type !== 'CallExpression') return false
+  const callee = call.callee as Node
+  const root = callee.type === 'Identifier' ? callee : callee.type === 'MemberExpression' && callee.object.type === 'Identifier' ? callee.object : undefined
+  if (root === undefined) return true // `this.isValidX()`, `make().isValidX()`: project code we can't trace
+  const variable = findVariable(sourceCode.getScope(call), root.name)
+  if (variable === undefined) return callee.type !== 'Identifier' // an undeclared global function is not a project guard
+  const source = importSourceOf(variable)
+  if (source === undefined) return true // defined in this file
+  return source.startsWith('.') || guardModules.some((prefix) => source.startsWith(prefix))
 }
 
 /** The name a function is bound to, and the node to report on: declarations, variables, object and class members. */

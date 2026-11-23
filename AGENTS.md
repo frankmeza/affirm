@@ -36,7 +36,7 @@ import affirm from 'affirm/eslint'
 export default [affirm.configs.recommended, { settings: { affirm: { guards: '^isValid' } } }]
 ```
 
-`guards` is a naming contract: functions that just return `affirm(…)` must be named by it, and nothing else may be. That lets the rule catch `!isValidOrder(x)` even when the guard is imported.
+`guards` is a naming contract: functions that just return `affirm(…)` must be named by it, and nothing else may be. That lets the rule catch `!isValidOrder(x)` even when the guard is imported. Functions imported from packages never count. If you import your own code through a path alias, add it: `guardModules: ['@/']`.
 
 ## Rules
 

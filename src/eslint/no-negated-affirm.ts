@@ -5,8 +5,10 @@ import {
   calleeName,
   carrier,
   functionVariable,
+  guardModulesOf,
   guardPatternOf,
   isAffirmCall,
+  isProjectCall,
   negationOf,
   outermost,
   sourcesOf,
@@ -87,6 +89,7 @@ export const noNegatedAffirm: Rule.RuleModule = {
     const options = (context.options[0] ?? {}) as Options
     const sources = sourcesOf(context, options.sources)
     const guards = guardPatternOf(context)
+    const guardModules = guardModulesOf(context)
 
     const reported = new Set<Node>()
 
@@ -128,6 +131,7 @@ export const noNegatedAffirm: Rule.RuleModule = {
           // A guard from anywhere (usually another file): its name matches `settings.affirm.guards`.
           const name = calleeName(node)
           if (guards === undefined || name === undefined || !guards.test(name)) return
+          if (!isProjectCall(node, sourceCode, guardModules)) return // a third-party `isValid…` is not our guard
           const negation = negationOf(carrier(node))
           if (negation !== undefined) {
             report(negation, { messageId: 'negatedGuard', data: { usage: usageText(sourceCode, negation), name, pattern: guards.source } })

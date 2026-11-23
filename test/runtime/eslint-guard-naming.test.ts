@@ -86,4 +86,18 @@ test('a bad guard pattern is a configuration error, not a silent no-op', () => {
   expect(() => lint('(')).toThrow(/`settings.affirm.guards` is not a valid regular expression/)
   expect(() => lint(42)).toThrow(/`settings.affirm.guards` must be a non-empty regular expression string/)
   expect(() => lint('^isValid')).not.toThrow()
+
+  const lintModules = (guardModules: unknown) =>
+    linter.verify('const x = 1', [
+      { plugins: { affirm: plugin }, rules: { 'affirm/no-negated-affirm': 'error' }, settings: { affirm: { guards: '^isValid', guardModules } } },
+    ])
+  expect(() => lintModules('@/')).toThrow(/`settings.affirm.guardModules` must be an array of import prefixes/)
+  expect(() => lintModules([''])).toThrow(/`settings.affirm.guardModules` must be an array of import prefixes/)
+  expect(() => lintModules(['@/', '~/'])).not.toThrow()
+})
+
+// `test:eslint9` re-runs these tests on ESLint 9 through an alias; make sure the alias took effect.
+const expectedMajor = (globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env.AFFIRM_EXPECT_ESLINT_MAJOR
+test.runIf(expectedMajor)('runs on the expected ESLint major version', () => {
+  expect(Linter.version.split('.')[0]).toBe(expectedMajor)
 })

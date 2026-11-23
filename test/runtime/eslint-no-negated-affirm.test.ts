@@ -202,6 +202,13 @@ tester.run('no-negated-affirm (settings.affirm.guards)', rule, {
     // names that don't match the pattern
     { code: "import { isOrder } from './guards'\nif (!isOrder(x)) {}", settings: GUARDS },
     { code: 'if (!guards[name](x)) {}', settings: GUARDS },
+    // third-party functions that happen to match the pattern are not the project's guards
+    { code: "import validator from 'validator'\nif (!validator.isValidPhoneNumber(x)) {}", settings: GUARDS },
+    { code: "import { isValidUrl } from 'url-kit'\nif (!isValidUrl(x)) {}", settings: GUARDS },
+    { code: "import * as kit from '@scope/kit'\nif (!kit.isValidUrl(x)) {}", settings: GUARDS },
+    { code: 'if (!isValidThing(x)) {}', settings: GUARDS }, // an undeclared global
+    // a path alias is treated like a package until it is listed in guardModules
+    { code: "import { isValidOrder } from '@/guards'\nif (!isValidOrder(x)) {}", settings: GUARDS },
   ],
   invalid: [
     {
@@ -225,6 +232,15 @@ tester.run('no-negated-affirm (settings.affirm.guards)', rule, {
       settings: GUARDS,
       errors: [{ messageId: 'negatedGuard' }], // one problem per negation
     },
+    // project code: path aliases listed in guardModules, local definitions, methods on local values
+    {
+      code: "import { isValidOrder } from '@/guards'\nif (!isValidOrder(x)) {}",
+      settings: { affirm: { guards: '^isValid', guardModules: ['@/'] } },
+      errors: [{ messageId: 'negatedGuard', data: { usage: '!isValidOrder(x)', name: 'isValidOrder', pattern: '^isValid' } }],
+    },
+    { code: "import * as g from '../shared/guards'\nif (!g.isValidOrder(x)) {}", settings: GUARDS, errors: [{ messageId: 'negatedGuard' }] },
+    { code: 'const isValidRow = (r) => r.ok\nif (!isValidRow(x)) {}', settings: GUARDS, errors: [{ messageId: 'negatedGuard' }] },
+    { code: 'class C { m(x) { return !this.isValidOrder(x) } }', settings: GUARDS, errors: [{ messageId: 'negatedGuard' }] },
     {
       code: "import { isValidOrder } from './guards'\nconst ok = !isValidOrder(x)",
       settings: GUARDS,

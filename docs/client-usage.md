@@ -55,6 +55,7 @@ export default [
     settings: {
       affirm: {
         guards: '^isValid',                 // the naming pattern for guards built on affirm (a regex string)
+        guardModules: ['@/'],               // only if you import your own code through path aliases
         sources: ['affirm', '@/lib/affirm'], // only if your project re-exports affirm from its own module
       },
     },
@@ -756,7 +757,7 @@ if (!isValidOrder(body)) return null                                // ✗ no-ne
 
 The two halves cover each other: a guard can't escape the pattern, and nothing that isn't a guard can match it. Two limits remain:
 - Inline callbacks (`.filter((r) => affirm(r, p))`) have no name, so they aren't checked. They aren't reusable either.
-- Functions that only *match* the pattern but come from outside the project (a third-party `isValid…`) would be flagged when negated. Choose a pattern that won't collide, such as `^isValid[A-Z]`.
+- **Only your own code counts as a guard.** A negated call is checked against the pattern when the function is defined in the same file, imported from a relative path (`./guards`), or imported from a prefix listed in `guardModules`. Anything imported from a package is ignored, so `validator.isValidPhoneNumber(x)` or `import { isValidUrl } from 'url-kit'` never trips the rule. If you import your own guards through a path alias (`@/guards`), list the alias in `guardModules`, or those guards are treated like a package and go unchecked.
 
 Without `guards`, same-file wrappers are still caught. For imported guards it is then a convention only.
 
