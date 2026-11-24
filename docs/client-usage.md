@@ -2,7 +2,7 @@
 
 This guide shows how to use `affirm` in application code that depends on it, such as API handlers, config loading, fetch responses, form input and array filtering. It is written for AI coding agents that generate that code, and for the people who review it.
 
-[`AGENTS.md`](../AGENTS.md) is the short reference. This document goes deeper into the parts of the API that generated code uses most, and into the mistakes that compile but do the wrong thing. Every behaviour and error message quoted here was checked against the current source (TypeScript 7.0, `strict: true`).
+[`AGENTS.md`](../AGENTS.md) is the short reference. This document goes deeper into the parts of the API that generated code uses most, and into the mistakes that compile but do the wrong thing. Every behaviour and error message quoted here was checked against the current source with `strict: true`: types on TypeScript 5.9 to 7.0, lint rules on ESLint 9 and 10.
 
 ---
 
@@ -32,60 +32,66 @@ import { affirm, AffirmError, type AffirmParams, type Affirmed, type AffirmRepor
 
 ### ESLint plugin (required)
 
-`affirm/eslint` enforces the one usage rule that TypeScript can't check: **never negate `affirm()`** (§9). Add it to the client's flat config (ESLint 9+):
+`affirm/eslint` catches the usage mistakes TypeScript can't: negated checks (§9), guards that hide `affirm` under another name (§9), and params that lose their exact values (§8.1). It needs ESLint 9 or 10 with a flat config. `eslint` is an optional peer dependency, so projects that don't lint don't install it.
+
+A complete setup for a TypeScript project:
 
 ```js
 // eslint.config.js
 import affirm from 'affirm/eslint'
-
-export default [
-  // …your other configs, including the TypeScript parser for .ts files
-  affirm.configs.recommended, // 'affirm/no-negated-affirm': 'error'
-]
-```
-
-The rule only flags calls to the real `affirm` import, including aliased (`import { affirm as check }`) and namespace (`ns.affirm(…)`) imports.
-
-Both rules read one shared settings block. Setting `guards` is **strongly recommended**: without it, negated guards imported from other files can't be caught (§9).
-
-```js
-export default [
-  affirm.configs.recommended,
-  {
-    settings: {
-      affirm: {
-        guards: '^isValid',                 // the naming pattern for guards built on affirm (a regex string)
-        guardModules: ['@/'],               // only if you import your own code through path aliases
-        sources: ['affirm', '@/lib/affirm'], // only if your project re-exports affirm from its own module
-      },
-    },
-  },
-]
-```
-
-`affirm.configs.recommended` turns on three rules:
-
-| Rule | What it enforces |
-| --- | --- |
-| `affirm/no-negated-affirm` | No negated `affirm()`, directly or through variables, `&&` / `\|\|`, same-file wrappers, or (with `guards`) any call whose name matches the guard pattern |
-| `affirm/guard-naming` | With `guards` set: every named function whose whole body returns `affirm(…)` matches the pattern, and only such functions do. Does nothing without `guards` |
-| `affirm/const-params` | TypeScript files: params declared apart from the call are `as const`, so they keep their exact values (§8.1). Autofixable |
-
-The rules need no type information. **With type information, `affirm/const-params` also follows imported names to their declarations in other files**, the only way to catch an imported bare list (`isOneOf: ROLES`, §8.1). Turn it on in the TypeScript parser options:
-
-```js
 import tsParser from '@typescript-eslint/parser'
 
 export default [
   {
     files: ['**/*.ts'],
-    languageOptions: { parser: tsParser, parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname } },
+    languageOptions: {
+      parser: tsParser,
+      // Optional type information: lets affirm/const-params follow lists imported from other files (§8.1).
+      parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
+    },
   },
   affirm.configs.recommended,
+  {
+    settings: { affirm: { guards: '^isValid' } }, // strongly recommended: catches negated guards across files (§9)
+    linterOptions: { reportUnusedDisableDirectives: 'error' },
+  },
 ]
 ```
 
-Type-aware linting is slower, and `typescript-eslint` doesn't support TypeScript 7 yet (it needs TypeScript's JavaScript API). Without it, every rule still works; only the cross-file list check is skipped. `eslint` is an optional peer dependency, so projects that don't lint don't install it.
+`affirm.configs.recommended` sets no `files`, so it applies to everything ESLint lints. `.ts` files still need the TypeScript parser, as above.
+
+**The rules**, all `error` in `recommended`:
+
+| Rule | Catches | Fix |
+| --- | --- | --- |
+| `affirm/no-negated-affirm` | `!affirm(…)`, `=== false`, and negation through variables, `&&` / `\|\|`, same-file wrappers, and (with `guards`) guards from other files | Editor suggestion for `if (!affirm(…)) throw …` → `affirm.assert(…)` |
+| `affirm/guard-naming` | With `guards`: a function returning `affirm(…)` whose name doesn't match the pattern, or a non-guard whose name does. Does nothing without `guards` | None (renaming crosses files) |
+| `affirm/const-params` | TypeScript files: params or lists used in params declared without `as const`, or typed as `AffirmParams` | `eslint --fix` adds `as const`; a suggestion instead when the variable has other uses or a type annotation |
+
+**Settings**, shared by all rules under `settings.affirm`:
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `guards` | none | A regular expression (as a string) naming every guard built on `affirm`, e.g. `'^isValid'`. Turns on `guard-naming` and the cross-file guard check (§9) |
+| `guardModules` | `[]` | Import prefixes that are your own code, for path aliases such as `['@/']`. Relative imports always count; packages never do |
+| `sources` | `['affirm']` | Modules that export `affirm`, if your project re-exports it (`['affirm', '@/lib/affirm']`) |
+
+The rules recognise `affirm` however it's imported: aliased (`import { affirm as check }`) or as a namespace (`ns.affirm(…)`). An unrelated function that happens to be called `affirm` is ignored.
+
+**What lint can and can't see.** ESLint checks one file at a time and, by default, without type information:
+
+| Situation | Without type information | With `projectService` |
+| --- | --- | --- |
+| Negated `affirm()` in any form within a file | ✓ | ✓ |
+| Negated guard imported from another file | ✓ with `guards` | ✓ with `guards` |
+| Params object without `as const`, declared in any file | ✓ (recognised by its keys) | ✓ |
+| List used in params, declared in the same file | ✓ | ✓ |
+| List imported from another file (`isOneOf: ROLES`) | ✗ (convention: declare it `as const`) | ✓ (reported at the use) |
+| JavaScript files | `no-negated-affirm` and `guard-naming` only | n/a |
+
+Type-aware linting is slower, and `typescript-eslint` currently supports TypeScript up to 6.0 (it needs TypeScript's JavaScript API, which 7.0 doesn't have). Without it, every rule still works; only the imported-list check is skipped.
+
+**Exceptions.** Disable a rule for one line only, with a reason after `--`: `// eslint-disable-next-line affirm/no-negated-affirm -- legacy handler: only null reaches here`. Never disable a rule for a whole file. With `reportUnusedDisableDirectives: 'error'` (as above), stale exceptions get flagged (§9).
 
 ---
 
@@ -198,7 +204,7 @@ affirm(config, { isDeepEqual: { mode: 'strict', retries: 3 } })
 ```
 
 - `is` uses `===`, and `isOneOf` uses SameValueZero (`NaN` matches `NaN`). Objects compare by reference. Use `isDeepEqual` to compare structure.
-- With literal params written inline, `isOneOf` narrows to the literal union (`'draft' | 'published' | 'archived'`). If you hoist the list into a variable, add `as const` or the narrowing widens to `string` (§8.1).
+- With literal params written inline, `isOneOf` narrows to the literal union (`'draft' | 'published' | 'archived'`). If you hoist the list into a variable, add `as const` or the narrowing widens to `string` (§8.1). `affirm/const-params` flags it, and `eslint --fix` adds `as const`.
 
 ### 4.6 Objects: `shape` is the workhorse
 
@@ -433,7 +439,7 @@ const present = maybeNames.filter((n) => affirm(n, { isPresent: true }))
 // string[] (exact check, so no Refined marker)
 ```
 
-For a reusable guard, name its type with `Affirmed`:
+For a reusable guard, name its type with `Affirmed`, and its function with your `guards` pattern (`'^isValid'` here; §1, §9). That way `!isValidOrder(x)` is caught even in files that import it:
 
 ```ts
 const orderParams = { shape: { id: { isType: 'string' }, total: { isFiniteNumber: true } } } as const
@@ -801,7 +807,7 @@ if (!isValidOrder(body)) return null                                // ✗ no-ne
 
 The two halves cover each other: a guard can't escape the pattern, and nothing that isn't a guard can match it. Two limits remain:
 - Inline callbacks (`.filter((r) => affirm(r, p))`) have no name, so they aren't checked. They aren't reusable either.
-- **Only your own code counts as a guard.** A negated call is checked against the pattern when the function is defined in the same file, imported from a relative path (`./guards`), or imported from a prefix listed in `guardModules`. Anything imported from a package is ignored, so `validator.isValidPhoneNumber(x)` or `import { isValidUrl } from 'url-kit'` never trips the rule. If you import your own guards through a path alias (`@/guards`), list the alias in `guardModules`, or those guards are treated like a package and go unchecked.
+- **Only your own code counts as a guard.** A negated call is checked against the pattern when the function is defined in the same file, imported from a relative path (`./guards`), or imported from a prefix listed in `guardModules`. Anything imported from a package is ignored, so `validator.isValidPhoneNumber(x)` or `import { isValidUrl } from 'url-kit'` never trips the rule. If you import your own guards through a path alias (`@/guards`), list the alias in `guardModules` (§1), or those guards are treated like a package and go unchecked.
 
 Without `guards`, same-file wrappers are still caught. For imported guards it is then a convention only.
 
@@ -826,14 +832,17 @@ That keeps each exception deliberate, visible in review, and searchable (`grep -
 ## 10. Checklist for reviewing generated `affirm` code
 
 - [ ] Value first, params second.
-- [ ] No negated `affirm()`: no `!affirm(…)`, `=== false`, `!ok`, or `!isSomeGuard(x)` for a guard built on `affirm`. `settings.affirm.guards` is set, and guards are named by it. Any `eslint-disable` for the rule has a reason after `--`. Failure paths use `assert`, `explain` or a positive check, and `affirm/no-negated-affirm` is enabled.
+- [ ] Lint is set up as in §1: `affirm.configs.recommended`, `settings.affirm.guards`, and `projectService` where the TypeScript version allows it.
+- [ ] No negated `affirm()`: no `!affirm(…)`, `=== false`, `!ok`, or `!isSomeGuard(x)` for a guard built on `affirm`. Failure paths use `assert`, `explain` or a positive check.
+- [ ] Every reusable guard built on `affirm` is named by the `guards` pattern, and nothing else is.
+- [ ] Any `eslint-disable` for an `affirm/*` rule covers one line and has a reason after `--`.
 - [ ] Optional fields use `anyOf: [{ isUndefined: true }, …]`. Nullable fields use `isNull`. Fields that can be both use `isNullish`.
 - [ ] `isPlainObject: true` is present when arrays must be rejected (`shape` and `isType: 'object'` accept arrays).
 - [ ] `everyItem` is paired with `isNotEmpty: true` when an empty array is invalid.
 - [ ] No `includes` on arrays and no `contains` on strings.
 - [ ] Numeric checks run on numbers, not on numeric strings from env vars, query strings or form fields.
 - [ ] `isFiniteNumber` or `isInteger` is used instead of bare `isType: 'number'` when `NaN` / `Infinity` must be rejected.
-- [ ] Hoisted params use `as const`, and are never annotated or cast as `AffirmParams` (`affirm/const-params`; `eslint --fix` adds it).
+- [ ] Hoisted params, and lists used in params (`isOneOf: ROLES`), use `as const` where they're declared, even in other files. They're never annotated or cast as `AffirmParams` (`affirm/const-params`; `eslint --fix` adds it).
 - [ ] Every inline function in params annotates its parameter: `(v: unknown) =>`.
 - [ ] `affirm.assert` is called as a method, never destructured.
 - [ ] `explain()` is used only where its failures are used, and `affirm()` everywhere else.
