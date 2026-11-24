@@ -145,7 +145,7 @@ export function usageText(sourceCode: SourceCode, node: Node): string {
 /**
  * Shared settings for every affirm rule, in the flat config's `settings.affirm`:
  *
- * - `sources`: module specifiers that export `affirm` (default `['affirm']`). Add your own re-export.
+ * - `sources`: module specifiers that export `affirm` (default `['@frankmeza/affirm']`). Add your own re-export.
  * - `guards`: a regular expression (as a string) that every function returning `affirm(…)` must match,
  *   and that only such functions may match. With it, negated calls to imported guards are caught too.
  * - `guardModules`: import prefixes that are your own code, for path aliases such as `'@/'`.
@@ -165,9 +165,9 @@ function settingsOf(context: Rule.RuleContext): AffirmSettings {
   return settings as AffirmSettings
 }
 
-/** `sources` from the rule's own option (if given), else `settings.affirm.sources`, else `['affirm']`. */
+/** `sources` from the rule's own option (if given), else `settings.affirm.sources`, else `['@frankmeza/affirm']`. */
 export function sourcesOf(context: Rule.RuleContext, option?: string[]): ReadonlySet<string> {
-  const sources = option ?? settingsOf(context).sources ?? ['affirm']
+  const sources = option ?? settingsOf(context).sources ?? ['@frankmeza/affirm']
   if (!Array.isArray(sources) || sources.some((s) => typeof s !== 'string')) {
     throw new Error('affirm: `settings.affirm.sources` must be an array of module specifiers')
   }

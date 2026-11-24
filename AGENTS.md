@@ -19,7 +19,7 @@ For more detail, including scenario recipes, report formats, a narrowing table a
 ## API
 
 ```ts
-import { affirm, AffirmError } from 'affirm'
+import { affirm, AffirmError } from '@frankmeza/affirm'
 
 affirm(value, params)                   // boolean; narrows `value` in the if-branch
 affirm.explain(value, params)           // { ok, failures }: every failure, with paths
@@ -32,7 +32,7 @@ Lint client code with the bundled plugin. It enforces Rule 10, which TypeScript 
 
 ```js
 // eslint.config.js
-import affirm from 'affirm/eslint'
+import affirm from '@frankmeza/affirm/eslint'
 export default [affirm.configs.recommended, { settings: { affirm: { guards: '^isValid' } } }]
 ```
 

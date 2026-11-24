@@ -1,6 +1,6 @@
 # affirm — Design Spec
 
-Status: draft v1 · Owner: Frank · Package: `affirm` (private, local use only)
+Status: draft v1 · Owner: Frank · Package: `@frankmeza/affirm`
 
 ## 1. Goal
 
@@ -26,7 +26,7 @@ Primary consumer: AI coding agents writing application code in a project that de
 ## 3. Public API
 
 ```ts
-import { affirm, AffirmError } from 'affirm'
+import { affirm, AffirmError } from '@frankmeza/affirm'
 
 affirm(value, params)            // → boolean, and a type predicate that narrows `value`
 affirm.explain(value, params)    // → AffirmReport  (never throws on data failure)
@@ -298,7 +298,7 @@ Detect via the `'~standard'` property. Vendor the `StandardSchemaV1` type defini
 ## 13. Open questions
 
 - Q1: Package name / scope.
-  - `affirm`, local usage only for now.
+  - Resolved: published as `@frankmeza/affirm`.
 - Q2: Should `hasKey` etc. accept `Object.prototype`-free objects created with `Object.create(null)`? (Yes with `Object.hasOwn`; confirm with a test.)
   - yes, with reminders about this later if it starts to seem like it will become thorny.
 - Q3: `bigint` support for number keys: v1.1?

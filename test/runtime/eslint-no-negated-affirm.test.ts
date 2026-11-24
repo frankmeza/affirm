@@ -1,4 +1,4 @@
-// Design D8: negating affirm() is banned in client code; `affirm/eslint` enforces it.
+// Design D8: negating affirm() is banned in client code; `@frankmeza/affirm/eslint` enforces it.
 import { RuleTester, type Linter } from 'eslint'
 import tsParserModule from 'affirm-test-ts-parser' // typescript-eslint's parser, on TypeScript 5.9
 import { describe, it } from 'vitest'
@@ -11,7 +11,7 @@ RuleTester.itOnly = it.only
 const rule = plugin.rules['no-negated-affirm']
 const tester = new RuleTester()
 
-const IMPORT = "import { affirm } from 'affirm'\n"
+const IMPORT = "import { affirm } from '@frankmeza/affirm'\n"
 
 const ADVICE =
   'Negating affirm() is true when any check fails for any reason, so it tells you nothing reliable about the value. ' +
@@ -38,7 +38,7 @@ tester.run('no-negated-affirm', rule, {
     'function affirm() { return true }\nif (!affirm(x)) {}',
     `${IMPORT}function f(affirm) { return !affirm(x) }`,
     "import { affirm } from 'other-lib'\n!affirm(x, p)",
-    "import { assert } from 'affirm'\n!assert(x)",
+    "import { assert } from '@frankmeza/affirm'\n!assert(x)",
     // stored results: only variables assigned once are tracked (a reassigned one may not hold affirm's result)
     `${IMPORT}let ok = affirm(x, p); ok = other(); if (!ok) {}`,
     `${IMPORT}const ok = affirm(x, p) ?? fallback; if (!ok) {}`,
@@ -67,14 +67,14 @@ tester.run('no-negated-affirm', rule, {
     { code: `${IMPORT}if (!affirm(x, p) && y) {}`, errors: [negated] },
     { code: `${IMPORT}function f() { if (!affirm(x, p)) return null }`, errors: [negated] },
     {
-      code: "import { affirm as check } from 'affirm'\nif (!check(x, p)) {}",
+      code: "import { affirm as check } from '@frankmeza/affirm'\nif (!check(x, p)) {}",
       errors: [{ messageId: 'negated', data: { usage: '!check(x, p)' } }],
     },
-    { code: "import * as a from 'affirm'\nif (!a.affirm(x, p)) {}", errors: [negated] },
-    { code: "import * as a from 'affirm'\nif (!a['affirm'](x, p)) {}", errors: [negated] },
+    { code: "import * as a from '@frankmeza/affirm'\nif (!a.affirm(x, p)) {}", errors: [negated] },
+    { code: "import * as a from '@frankmeza/affirm'\nif (!a['affirm'](x, p)) {}", errors: [negated] },
     {
       code: "import { affirm } from '@/lib/affirm'\nif (!affirm(x, p)) {}",
-      options: [{ sources: ['affirm', '@/lib/affirm'] }],
+      options: [{ sources: ['@frankmeza/affirm', '@/lib/affirm'] }],
       errors: [negated],
     },
     {
@@ -172,7 +172,7 @@ tester.run('no-negated-affirm', rule, {
       ],
     },
     {
-      code: "import { affirm as check } from 'affirm'\nif (!check(body, params)) throw new Error('bad')",
+      code: "import { affirm as check } from '@frankmeza/affirm'\nif (!check(body, params)) throw new Error('bad')",
       errors: [
         {
           messageId: 'negated',
@@ -180,7 +180,7 @@ tester.run('no-negated-affirm', rule, {
             {
               messageId: 'suggestAssert',
               data: { replacement: "check.assert(body, params, 'bad')" },
-              output: "import { affirm as check } from 'affirm'\ncheck.assert(body, params, 'bad')",
+              output: "import { affirm as check } from '@frankmeza/affirm'\ncheck.assert(body, params, 'bad')",
             },
           ],
         },
@@ -257,7 +257,7 @@ tsTester.run('no-negated-affirm (TypeScript syntax)', rule, {
   valid: [
     `${IMPORT}if (affirm(x, p) as boolean) {}`,
     `${IMPORT}const isOrder = (v: unknown): v is Order => affirm(v, p)\nif (isOrder(x)) {}`,
-    `import type { AffirmParams } from 'affirm'\nconst p: AffirmParams = { isPresent: true }\nif (!check(x, p)) {}`,
+    `import type { AffirmParams } from '@frankmeza/affirm'\nconst p: AffirmParams = { isPresent: true }\nif (!check(x, p)) {}`,
   ],
   invalid: [
     { code: `${IMPORT}if (!affirm(x, p)) {}`, errors: [negated] },

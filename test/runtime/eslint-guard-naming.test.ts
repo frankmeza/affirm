@@ -11,7 +11,7 @@ RuleTester.itOnly = it.only
 const rule = plugin.rules['guard-naming']
 const tester = new RuleTester({ settings: { affirm: { guards: '^isValid' } } })
 
-const IMPORT = "import { affirm } from 'affirm'\n"
+const IMPORT = "import { affirm } from '@frankmeza/affirm'\n"
 
 tester.run('guard-naming', rule, {
   valid: [
@@ -54,7 +54,7 @@ tester.run('guard-naming', rule, {
     { code: `${IMPORT}const guards = { order: (v) => affirm(v, p) }`, errors: [{ messageId: 'unnamedGuard', data: { name: 'order', pattern: '^isValid' } }] },
     { code: `${IMPORT}class Guards { order(v) { return affirm(v, p) } }`, errors: [{ messageId: 'unnamedGuard' }] },
     {
-      code: "import { affirm as check } from 'affirm'\nconst ok = (v) => check(v, p) && check(v, q)",
+      code: "import { affirm as check } from '@frankmeza/affirm'\nconst ok = (v) => check(v, p) && check(v, q)",
       errors: [{ messageId: 'unnamedGuard', data: { name: 'ok', pattern: '^isValid' } }], // one function, one report
     },
     // the pattern is reserved for guards

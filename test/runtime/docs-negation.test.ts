@@ -3,7 +3,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, test } from 'vitest'
 
-const DOCS = ['AGENTS.md', 'docs/client-usage.md'] // vitest runs from the project root
+const DOCS = ['README.md', 'AGENTS.md', 'docs/client-usage.md'] // vitest runs from the project root
 
 const NEGATED = [
   /!\s*\(*\s*affirm\s*(\?\.)?\(/, // !affirm(  !(affirm(  !affirm?.(

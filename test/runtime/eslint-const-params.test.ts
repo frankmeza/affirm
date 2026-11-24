@@ -11,7 +11,7 @@ RuleTester.itOnly = it.only
 const rule = plugin.rules['const-params']
 const tester = new RuleTester({ languageOptions: { parser: tsParserModule as unknown as Linter.Parser } })
 
-const IMPORT = "import { affirm } from 'affirm'\n"
+const IMPORT = "import { affirm } from '@frankmeza/affirm'\n"
 const ts = <T extends object>(cases: T[]) => cases.map((c) => ({ filename: 'file.ts', ...c }))
 
 const needsConst = (name: string) =>
@@ -193,13 +193,13 @@ tester.run('const-params', rule, {
     },
     // aliased and namespace imports
     {
-      code: "import { affirm as check } from 'affirm'\nconst p = { isPresent: true }\ncheck(x, p)",
-      output: "import { affirm as check } from 'affirm'\nconst p = { isPresent: true } as const\ncheck(x, p)",
+      code: "import { affirm as check } from '@frankmeza/affirm'\nconst p = { isPresent: true }\ncheck(x, p)",
+      output: "import { affirm as check } from '@frankmeza/affirm'\nconst p = { isPresent: true } as const\ncheck(x, p)",
       errors: [{ messageId: 'needsConst' }],
     },
     {
-      code: "import * as a from 'affirm'\nconst p = { isPresent: true }\na.affirm.assert(x, p)",
-      output: "import * as a from 'affirm'\nconst p = { isPresent: true } as const\na.affirm.assert(x, p)",
+      code: "import * as a from '@frankmeza/affirm'\nconst p = { isPresent: true }\na.affirm.assert(x, p)",
+      output: "import * as a from '@frankmeza/affirm'\nconst p = { isPresent: true } as const\na.affirm.assert(x, p)",
       errors: [{ messageId: 'needsConst' }],
     },
   ]),

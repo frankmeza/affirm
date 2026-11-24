@@ -18,12 +18,12 @@ pnpm build
 ```jsonc
 // client package.json
 "dependencies": {
-  "affirm": "link:../affirm"
+  "@frankmeza/affirm": "link:../affirm"
 }
 ```
 
 ```ts
-import { affirm, AffirmError, type AffirmParams, type Affirmed, type AffirmReport, type AffirmFailure } from 'affirm'
+import { affirm, AffirmError, type AffirmParams, type Affirmed, type AffirmReport, type AffirmFailure } from '@frankmeza/affirm'
 ```
 
 `affirm` has no runtime dependencies. For narrowing to work, the client's `tsconfig.json` needs `"strict": true`, or at least `strictNullChecks`.
@@ -32,13 +32,13 @@ import { affirm, AffirmError, type AffirmParams, type Affirmed, type AffirmRepor
 
 ### ESLint plugin (required)
 
-`affirm/eslint` catches the usage mistakes TypeScript can't: negated checks (§9), guards that hide `affirm` under another name (§9), and params that lose their exact values (§8.1). It needs ESLint 9 or 10 with a flat config. `eslint` is an optional peer dependency, so projects that don't lint don't install it.
+`@frankmeza/affirm/eslint` catches the usage mistakes TypeScript can't: negated checks (§9), guards that hide `affirm` under another name (§9), and params that lose their exact values (§8.1). It needs ESLint 9 or 10 with a flat config. `eslint` is an optional peer dependency, so projects that don't lint don't install it.
 
 A complete setup for a TypeScript project:
 
 ```js
 // eslint.config.js
-import affirm from 'affirm/eslint'
+import affirm from '@frankmeza/affirm/eslint'
 import tsParser from '@typescript-eslint/parser'
 
 export default [
@@ -74,7 +74,7 @@ export default [
 | --- | --- | --- |
 | `guards` | none | A regular expression (as a string) naming every guard built on `affirm`, e.g. `'^isValid'`. Turns on `guard-naming` and the cross-file guard check (§9) |
 | `guardModules` | `[]` | Import prefixes that are your own code, for path aliases such as `['@/']`. Relative imports always count; packages never do |
-| `sources` | `['affirm']` | Modules that export `affirm`, if your project re-exports it (`['affirm', '@/lib/affirm']`) |
+| `sources` | `['@frankmeza/affirm']` | Modules that export `affirm`, if your project re-exports it (`['@frankmeza/affirm', '@/lib/affirm']`) |
 
 The rules recognise `affirm` however it's imported: aliased (`import { affirm as check }`) or as a namespace (`ns.affirm(…)`). An unrelated function that happens to be called `affirm` is ignored.
 
@@ -325,7 +325,7 @@ if (affirm(body, { isType: Order })) {
 ### 5.1 HTTP handler: validate a request body and return 400 with reasons
 
 ```ts
-import { affirm } from 'affirm'
+import { affirm } from '@frankmeza/affirm'
 
 const createUserParams = {
   isPlainObject: true,
@@ -356,7 +356,7 @@ export async function createUser(req: Request): Promise<Response> {
 ### 5.2 Startup config: fail fast with `assert`
 
 ```ts
-import { affirm } from 'affirm'
+import { affirm } from '@frankmeza/affirm'
 
 affirm.assert(process.env.DATABASE_URL, { isType: 'string', startsWith: 'postgres://' }, 'DATABASE_URL must be a postgres:// URL')
 affirm.assert(process.env.PORT, { isType: 'string', matches: /^\d{2,5}$/ }, 'PORT must be numeric')
