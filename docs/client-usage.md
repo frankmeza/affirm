@@ -8,19 +8,11 @@ This guide shows how to use `affirm` in application code that depends on it, suc
 
 ## 1. Setup
 
-The package is ESM-only and is not published. Build it, then depend on it locally:
-
 ```sh
-# in the affirm repo
-npm run build
+npm install @frankmeza/affirm
 ```
 
-```jsonc
-// client package.json
-"dependencies": {
-  "@frankmeza/affirm": "link:../affirm"
-}
-```
+The package is ESM-only: use `import`, not `require`. Its types resolve under every `moduleResolution` setting (`bundler`, `node16`, `nodenext`).
 
 ```ts
 import { affirm, AffirmError, type AffirmParams, type Affirmed, type AffirmReport, type AffirmFailure } from '@frankmeza/affirm'
@@ -510,7 +502,7 @@ interface AffirmFailure {
 }
 ```
 
-Real output for the §5.1-style params against `{ email: 'nope', age: 12.5, role: 'owner', items: [{ sku: 'A', qty: 1 }, { sku: ' ', qty: 0 }], nickname: 42 }`:
+Real output for params like §5.1's (with `age` required, plus an `items` array and an optional `nickname`, as in §4.6 and §4.7) against `{ email: 'nope', age: 12.5, role: 'owner', items: [{ sku: 'A', qty: 1 }, { sku: ' ', qty: 0 }], nickname: 42 }`:
 
 ```text
 email: expected a string matching /^[^@\s]+@[^@\s]+$/, received string(len 4)

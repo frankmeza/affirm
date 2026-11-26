@@ -106,7 +106,7 @@ const report = affirm.explain(body, { shape: { email: { matches: /@/ } } })
 if (!report.ok) return badRequest(report.failures.map((f) => f.reason))
 ```
 
-Keys combine with AND, an omitted or `undefined` key is skipped, and there's no coercion: `isGreaterThan: 5` fails on `'10'`. Mistakes in the params themselves, such as an unknown key or an empty `{}`, throw a `TypeError` with a "did you mean" hint, so they can't pass silently.
+Keys combine with AND, an omitted or `undefined` key is skipped, and there's no coercion: `isGreaterThan: 5` fails on `'10'`. Mistakes in the params themselves, such as an unknown key or an empty `{}`, throw a `TypeError` that says how to fix them (an unknown key gets a "did you mean" hint), so they can't pass silently.
 
 | Group        | Keys                                                                                                                      |
 | ------------ | ------------------------------------------------------------------------------------------------------------------------- |

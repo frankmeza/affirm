@@ -81,7 +81,7 @@ export default [affirm.configs.recommended, { settings: { affirm: { guards: '^is
 | Equality | `is`, `isNot`, `isOneOf`, `isNotOneOf`, `isDeepEqual` |
 | Nullish | `isNull`, `isUndefined`, `isNullish`, `isDefined` (≠ undefined), `isPresent` (≠ null and ≠ undefined), `isTruthy`, `isFalsy` |
 | Runtime type | `isType` (`'string'`, `'number'`, `'boolean'`, `'bigint'`, `'symbol'`, `'function'`, `'object'`, a type guard, or a sync Standard Schema), `isArray`, `isPlainObject`, `isFunction`, `isInstanceOf`, `isValidDate`, `isInteger`, `isFiniteNumber`, `isNaN` |
-| Size (strings, arrays, Maps, Sets) | `isEmpty`, `isNotEmpty` (also plain objects), `isBlank`, `hasLength`, `hasMinLength`, `hasMaxLength` |
+| Size (strings, arrays, Maps, Sets) | `isEmpty`, `isNotEmpty` (both also plain objects), `isBlank`, `hasLength`, `hasMinLength`, `hasMaxLength` |
 | Numbers | `isGreaterThan`, `isAtLeast` (≥), `isLessThan`, `isAtMost` (≤), `isBetween: [min, max]` (**inclusive**), `isPositive`, `isNegative`, `isMultipleOf` |
 | Strings | `startsWith`, `endsWith`, `includes` (strings only), `matches: RegExp` |
 | Objects | `shape: { field: params }`, `hasKey`, `hasKeys`, `hasAnyKey`, `hasOnlyKeys`, `hasPath: 'a.b.0.c'` |
@@ -117,8 +117,9 @@ affirm(order.items, {
 // Exact keys only
 affirm(query, { isPlainObject: true, hasOnlyKeys: ['page', 'limit'] })
 
-// Cross-field rule: `satisfies` receives `unknown`, so guard first
-affirm(range, { satisfies: (r) => isRange(r) && r.min <= r.max })
+// Cross-field rule: `satisfies` receives `unknown`, so guard first.
+// Annotate `(r: unknown)`: an unannotated inline function turns off narrowing for the whole call.
+affirm(range, { satisfies: (r: unknown) => isRange(r) && r.min <= r.max })
 
 // An existing Zod / Valibot / ArkType schema (sync only; validates, never transforms)
 affirm(body, { isType: OrderSchema })
@@ -134,7 +135,7 @@ if (!report.ok) return badRequest(report.failures.map((f) => f.reason))
 
 ## Type narrowing
 
-- **Exact checks** narrow both branches. These are `isNull`, `isUndefined`, `isNullish`, `isDefined`, `isPresent`, `isType` with a primitive tag or guard, `isArray: true`, `isFunction: true`, `is`/`isOneOf` with literals, and `anyOf` of exact branches. Example: with `x: string | null`, after `if (affirm(x, { isNull: true })) return`, `x` is `string`.
+- **Exact checks** narrow both branches. These are `isNull`, `isUndefined`, `isNullish`, `isDefined`, `isPresent`, `isType` with a type guard or any tag except `'object'`, `isArray: true`, `isFunction: true`, `is`/`isOneOf` with literals, and `anyOf` of exact branches. Example: with `x: string | null`, after `if (affirm(x, { isNull: true })) return`, `x` is `string`.
 - **Refined checks** (all others) narrow only the `if` branch. The type gets a phantom `& Refined` marker, which you can ignore: a `string & Refined` works anywhere a `string` does. The `else` branch keeps the full type, because a value can fail for other reasons.
 - **No narrowing at all** happens for refined checks whose result could be `null` or `undefined` (e.g. `isFalsy` on `string | null`). TypeScript can't express that soundly, so `affirm` returns a plain boolean. If you need narrowing, split the check: `affirm(x, { isPresent: true }) && affirm(x, { … })`.
 - **Contradictions are compile errors**, e.g. "`isNull: true` contradicts `isPresent: true`" or "`hasMinLength: 10` is greater than `hasMaxLength: 9`". So are unknown keys at any depth.
