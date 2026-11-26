@@ -25,18 +25,19 @@ After:
 ```ts
 import { affirm } from "@frankmeza/affirm"
 
+// a non-null object with an own key `total`,
+// and `total` is a number greater than 0.
+const affirmIsNonZeroPositiveNumber = {
+  shape: {
+    total: { isType: "number", isPositive: true },
+  },
+} as const
+
 function getTotal(order: unknown): number | undefined {
-  if (
-    // `order` is a non-null object with an own key `total`,
-    // and `total` is a number greater than 0.
-    affirm(order, {
-      shape: {
-        total: { isType: "number", isPositive: true },
-      },
-    })
-  ) {
+  if (affirm(order, affirmIsNonZeroPositiveNumber)) {
     return order.total // number
   }
+
   return undefined
 }
 ```

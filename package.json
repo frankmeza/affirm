@@ -1,10 +1,26 @@
 {
   "name": "@frankmeza/affirm",
-  "version": "0.0.1",
+  "version": "0.0.2",
+  "description": "Runtime checks that read like a spec: one object of named checks that returns a boolean and narrows TypeScript types.",
+  "keywords": [
+    "typescript",
+    "type-guard",
+    "narrowing",
+    "validation",
+    "runtime-checks",
+    "assert",
+    "eslint-plugin",
+    "standard-schema"
+  ],
+  "author": "Frank Meza",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/frankmeza/affirm.git"
+  },
+  "homepage": "https://github.com/frankmeza/affirm#readme",
+  "bugs": {
+    "url": "https://github.com/frankmeza/affirm/issues"
   },
   "publishConfig": {
     "access": "public"
