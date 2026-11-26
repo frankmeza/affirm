@@ -212,7 +212,14 @@ const PROJECT = `${CWD}/test/fixtures/typed-project`
 const typedTester = new RuleTester({
   languageOptions: {
     parser: tsParserModule as unknown as Linter.Parser,
-    parserOptions: { project: './tsconfig.json', tsconfigRootDir: PROJECT },
+    parserOptions: {
+      project: './tsconfig.json',
+      tsconfigRootDir: PROJECT,
+      // With CI=true, typescript-eslint infers a single run and builds the program once from the files
+      // on disk. RuleTester lints its own code under file.ts, whose on-disk content is only a
+      // placeholder, so the program never sees the imports and every type-aware case reports nothing.
+      disallowAutomaticSingleRunInference: true,
+    },
   },
 })
 const inProject = <T extends object>(cases: T[]) => cases.map((c) => ({ filename: `${PROJECT}/file.ts`, ...c }))
