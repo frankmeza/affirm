@@ -1,7 +1,7 @@
-import type { AffirmParams } from '../types/params'
-import { formatParam } from './describe'
-import { checks, isCheckKey, KEY_ORDER } from './registry'
-import { closest } from './util/levenshtein'
+import type { AffirmParams } from '../types/params.js'
+import { formatParam } from './describe.js'
+import { checks, isCheckKey, KEY_ORDER } from './registry.js'
+import { closest } from './util/levenshtein.js'
 
 /**
  * Throws `TypeError` for programmer errors (design §4 rule 6, D4):

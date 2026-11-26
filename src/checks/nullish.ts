@@ -1,5 +1,5 @@
-import { booleanLeaf, Phase, type CheckGroup } from '../core/check-def'
-import type { NullishParams } from '../types/nullish'
+import { booleanLeaf, Phase, type CheckGroup } from '../core/check-def.js'
+import type { NullishParams } from '../types/nullish.js'
 
 export const nullishChecks = {
   isNull: booleanLeaf({

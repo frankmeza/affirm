@@ -1,4 +1,4 @@
-import { isPlainObject } from './kind'
+import { isPlainObject } from './kind.js'
 
 /**
  * Structural equality per design §7.

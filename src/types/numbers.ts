@@ -1,5 +1,5 @@
 // Value must be a number other than NaN; bigint is v1.1 (Q3).
-import type { BoolInfo, ParamInfo, ParamOf, Refine } from './narrowing'
+import type { BoolInfo, ParamInfo, ParamOf, Refine } from './narrowing.js'
 
 export interface NumberParams {
   /**

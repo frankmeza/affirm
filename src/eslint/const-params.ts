@@ -1,6 +1,6 @@
 import type { Rule, Scope, SourceCode } from 'eslint'
-import { CHECK_KEYS, GENERIC_KEYS } from './check-keys'
-import { findVariable, sourcesOf, takesAffirmParams, type Node } from './shared'
+import { CHECK_KEYS, GENERIC_KEYS } from './check-keys.js'
+import { findVariable, sourcesOf, takesAffirmParams, type Node } from './shared.js'
 
 // Hoisted params lose their literal types: `const p = { isOneOf: ['a', 'b'] }` is typed
 // `{ isOneOf: string[] }` before affirm() ever sees it, so narrowing silently weakens

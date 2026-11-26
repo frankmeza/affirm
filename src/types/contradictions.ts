@@ -2,7 +2,7 @@
 // Each check resolves to `unknown` when P is fine, or to an error object `{ __affirmError: '…' }`
 // that the editor shows at the call site. (An error *object*, not a string: `1 & 'message'` would
 // collapse to `never` and hide the text.)
-import type { AffirmParams } from './params'
+import type { AffirmParams } from './params.js'
 
 /** Everything the call signature intersects with P, applied at every nesting level. */
 export type ParamsCheck<P> = AffirmParams extends P

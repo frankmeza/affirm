@@ -1,6 +1,6 @@
-import type { AffirmParams } from '../types/params'
-import { formatParam } from './describe'
-import { makeFailure, type AffirmFailure } from './report'
+import type { AffirmParams } from '../types/params.js'
+import { formatParam } from './describe.js'
+import { makeFailure, type AffirmFailure } from './report.js'
 
 /** Canonical evaluation phases (design §4 rule 7). Lower runs first. */
 export const Phase = {

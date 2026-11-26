@@ -1,0 +1,16 @@
+{
+  // A client project on Node ESM resolution, importing the built package by name.
+  // `npm run test:types:consumer` typechecks it against `dist/` (run `npm run build` first).
+  // Catches declarations that only resolve under `bundler`, e.g. extensionless imports.
+  "compilerOptions": {
+    "target": "es2022",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "lib": ["ES2023"],
+    "types": [],
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": false
+  },
+  "include": ["index.ts"]
+}

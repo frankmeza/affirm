@@ -1,4 +1,4 @@
-import { describe } from './describe'
+import { describe } from './describe.js'
 
 /** One failed check. Never contains raw values from the checked data (design §8, D5). */
 export interface AffirmFailure {

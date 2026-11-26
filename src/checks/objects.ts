@@ -6,12 +6,12 @@ import {
   propertyKeyParam,
   type CheckGroup,
   type ValidateNested,
-} from '../core/check-def'
-import { formatList, formatParam } from '../core/describe'
-import { joinPath, type AffirmFailure } from '../core/report'
-import { isObjectLike, isPlainObject, ownKeys } from '../core/util/kind'
-import type { ObjectParams } from '../types/objects'
-import type { AffirmParams } from '../types/params'
+} from '../core/check-def.js'
+import { formatList, formatParam } from '../core/describe.js'
+import { joinPath, type AffirmFailure } from '../core/report.js'
+import { isObjectLike, isPlainObject, ownKeys } from '../core/util/kind.js'
+import type { ObjectParams } from '../types/objects.js'
+import type { AffirmParams } from '../types/params.js'
 
 const OBJECT = 'an object or array'
 

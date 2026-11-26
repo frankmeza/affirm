@@ -1,7 +1,7 @@
 import type { ESLint, Linter } from 'eslint'
-import { constParams } from './const-params'
-import { guardNaming } from './guard-naming'
-import { noNegatedAffirm } from './no-negated-affirm'
+import { constParams } from './const-params.js'
+import { guardNaming } from './guard-naming.js'
+import { noNegatedAffirm } from './no-negated-affirm.js'
 
 /**
  * ESLint plugin for projects that use `affirm` (flat config, ESLint 9+).

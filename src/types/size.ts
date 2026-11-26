@@ -1,5 +1,5 @@
-import type { Measurable } from '../core/util/kind'
-import type { BoolInfo, ParamInfo, ParamOf, Refine } from './narrowing'
+import type { Measurable } from '../core/util/kind.js'
+import type { BoolInfo, ParamInfo, ParamOf, Refine } from './narrowing.js'
 
 export interface SizeParams {
   /**

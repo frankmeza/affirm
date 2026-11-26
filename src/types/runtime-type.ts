@@ -1,5 +1,5 @@
-import type { StandardSchemaV1 } from '../core/util/standard-schema'
-import type { BoolInfo, Exact, IsUnion, ParamInfo, ParamOf, Refine } from './narrowing'
+import type { StandardSchemaV1 } from '../core/util/standard-schema.js'
+import type { BoolInfo, Exact, IsUnion, ParamInfo, ParamOf, Refine } from './narrowing.js'
 
 export type TypeTag = 'string' | 'number' | 'boolean' | 'bigint' | 'symbol' | 'function' | 'object'
 

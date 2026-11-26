@@ -1,7 +1,7 @@
-import { composite, formatParams, functionParam, leaf, Phase, type CheckGroup, type ValidateNested } from '../core/check-def'
-import { makeFailure, type AffirmFailure } from '../core/report'
-import type { CompositionParams } from '../types/composition'
-import type { AffirmParams } from '../types/params'
+import { composite, formatParams, functionParam, leaf, Phase, type CheckGroup, type ValidateNested } from '../core/check-def.js'
+import { makeFailure, type AffirmFailure } from '../core/report.js'
+import type { CompositionParams } from '../types/composition.js'
+import type { AffirmParams } from '../types/params.js'
 
 function validateBranches(param: unknown, path: string, validateNested: ValidateNested): string | undefined {
   if (!Array.isArray(param) || param.length === 0) return 'a non-empty array of params'

@@ -2,7 +2,7 @@
   "name": "affirm-test-ts-parser",
   "private": true,
   "version": "0.0.0",
-  "description": "Test-only: typescript-eslint's parser with TypeScript 5.9. The repo itself uses TypeScript 7, which has no JS API for the parser to call. As this package's own dependency, 5.9 is what the parser's `typescript` peer resolves to.",
+  "description": "Test-only: typescript-eslint's parser with TypeScript 5.9. The repo itself uses TypeScript 7, which has no JS API for the parser to call. This is a separate npm project with its own lockfile, installed by the root `prepare` script, so the parser and everything it loads (including `ts-api-utils`) resolve `typescript` to 5.9, never to the root's 7.",
   "main": "index.cjs",
   "dependencies": {
     "@typescript-eslint/parser": "^8.73.0",

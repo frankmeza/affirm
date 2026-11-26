@@ -1,9 +1,9 @@
-import { booleanLeaf, leaf, Phase, type CheckDef, type CheckGroup, type EvalContext } from '../core/check-def'
-import { formatParam } from '../core/describe'
-import { joinPath, makeFailure, type AffirmFailure } from '../core/report'
-import { isDate, isNumber, isPlainObject, looksLikeConstructor } from '../core/util/kind'
-import { isStandardSchema, validateSync, type StandardSchemaV1 } from '../core/util/standard-schema'
-import type { RuntimeTypeParams, TypeGuard, TypeTag } from '../types/runtime-type'
+import { booleanLeaf, leaf, Phase, type CheckDef, type CheckGroup, type EvalContext } from '../core/check-def.js'
+import { formatParam } from '../core/describe.js'
+import { joinPath, makeFailure, type AffirmFailure } from '../core/report.js'
+import { isDate, isNumber, isPlainObject, looksLikeConstructor } from '../core/util/kind.js'
+import { isStandardSchema, validateSync, type StandardSchemaV1 } from '../core/util/standard-schema.js'
+import type { RuntimeTypeParams, TypeGuard, TypeTag } from '../types/runtime-type.js'
 
 const TYPE_TAGS: ReadonlySet<string> = new Set<TypeTag>([
   'string',

@@ -1,6 +1,6 @@
-import { booleanLeaf, leaf, nonNegativeIntegerParam, Phase, type CheckGroup } from '../core/check-def'
-import { isMeasurable, isPlainObject, isString, sizeOf, type Measurable } from '../core/util/kind'
-import type { SizeParams } from '../types/size'
+import { booleanLeaf, leaf, nonNegativeIntegerParam, Phase, type CheckGroup } from '../core/check-def.js'
+import { isMeasurable, isPlainObject, isString, sizeOf, type Measurable } from '../core/util/kind.js'
+import type { SizeParams } from '../types/size.js'
 
 const MEASURABLE = 'a string, array, Map or Set'
 

@@ -1,7 +1,7 @@
-import type { IsExactNested, NarrowNested } from './affirmed'
-import type { Exact, ParamInfo, ParamOf, Refine } from './narrowing'
-import type { AffirmParams } from './params'
-import type { TypeGuard } from './runtime-type'
+import type { IsExactNested, NarrowNested } from './affirmed.js'
+import type { Exact, ParamInfo, ParamOf, Refine } from './narrowing.js'
+import type { AffirmParams } from './params.js'
+import type { TypeGuard } from './runtime-type.js'
 
 export interface CompositionParams {
   /**

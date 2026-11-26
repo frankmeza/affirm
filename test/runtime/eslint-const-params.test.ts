@@ -1,6 +1,6 @@
 // Hoisted params lose their literal types unless declared `as const` (docs/client-usage.md §8.1).
 import { RuleTester, type Linter } from 'eslint'
-import tsParserModule from 'affirm-test-ts-parser' // typescript-eslint's parser, on TypeScript 5.9
+import tsParserModule from '../fixtures/ts-parser/index.cjs' // typescript-eslint's parser, on TypeScript 5.9
 import { describe, it } from 'vitest'
 import plugin from '../../src/eslint'
 

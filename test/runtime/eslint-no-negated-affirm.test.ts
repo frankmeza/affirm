@@ -1,6 +1,6 @@
 // Design D8: negating affirm() is banned in client code; `@frankmeza/affirm/eslint` enforces it.
 import { RuleTester, type Linter } from 'eslint'
-import tsParserModule from 'affirm-test-ts-parser' // typescript-eslint's parser, on TypeScript 5.9
+import tsParserModule from '../fixtures/ts-parser/index.cjs' // typescript-eslint's parser, on TypeScript 5.9
 import { describe, it } from 'vitest'
 import plugin from '../../src/eslint'
 

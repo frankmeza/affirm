@@ -1,10 +1,10 @@
-import { AffirmError } from './core/errors'
-import { runParams } from './core/evaluate'
-import type { AffirmReport } from './core/report'
-import { validateParams } from './core/validate-params'
-import type { Affirmed, CanNarrow } from './types/affirmed'
-import type { ParamsCheck } from './types/contradictions'
-import type { AffirmParams } from './types/params'
+import { AffirmError } from './core/errors.js'
+import { runParams } from './core/evaluate.js'
+import type { AffirmReport } from './core/report.js'
+import { validateParams } from './core/validate-params.js'
+import type { Affirmed, CanNarrow } from './types/affirmed.js'
+import type { ParamsCheck } from './types/contradictions.js'
+import type { AffirmParams } from './types/params.js'
 
 /** Makes the narrowing overload inapplicable (so the boolean one is picked) when narrowing is unsound. */
 type IfNarrowable<V, P> = CanNarrow<V, P> extends true ? unknown : never
