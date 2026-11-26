@@ -1,6 +1,10 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
+    // NodeNext requires explicit `.js` extensions on relative imports, so the emitted
+    // declarations resolve for every client setting (bundler, node16, nodenext).
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
     "noEmit": false,
     "declaration": true,
     "emitDeclarationOnly": true,

@@ -7,12 +7,12 @@ import {
   Phase,
   type CheckGroup,
   type ValidateNested,
-} from '../core/check-def'
-import { formatList, formatParam } from '../core/describe'
-import { joinPath, makeFailure, type AffirmFailure } from '../core/report'
-import { isArray } from '../core/util/kind'
-import type { ArrayParams } from '../types/arrays'
-import type { AffirmParams } from '../types/params'
+} from '../core/check-def.js'
+import { formatList, formatParam } from '../core/describe.js'
+import { joinPath, makeFailure, type AffirmFailure } from '../core/report.js'
+import { isArray } from '../core/util/kind.js'
+import type { ArrayParams } from '../types/arrays.js'
+import type { AffirmParams } from '../types/params.js'
 
 /** Nested item params are validated once, at `items[*]`. */
 const validateItemParams = (param: unknown, path: string, validateNested: ValidateNested): undefined => {

@@ -1,7 +1,7 @@
 // Value must be a non-null object or array. Own-key semantics (D2): `Object.hasOwn`.
-import type { NarrowNested } from './affirmed'
-import type { IsLiteral, IsUnion, ParamInfo, ParamOf, Refine } from './narrowing'
-import type { AffirmParams } from './params'
+import type { NarrowNested } from './affirmed.js'
+import type { IsLiteral, IsUnion, ParamInfo, ParamOf, Refine } from './narrowing.js'
+import type { AffirmParams } from './params.js'
 
 export interface ObjectParams {
   /**

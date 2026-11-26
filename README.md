@@ -2,13 +2,42 @@
 
 Runtime checks that read like a spec. `affirm(value, params)` replaces a compound `if` with one object of named checks. It returns a boolean and narrows `value`'s type.
 
-```ts
-// before: what is this actually checking?
-if (order && typeof order === 'object' && 'total' in order && typeof order.total === 'number' && order.total > 0) { … }
+Before: what is this actually checking?
 
-// after
-if (affirm(order, { shape: { total: { isType: 'number', isPositive: true } } })) {
-  order.total // number
+```ts
+function getTotal(order: unknown): number | undefined {
+  if (
+    typeof order === "object" &&
+    order !== null &&
+    Object.hasOwn(order, "total") && // own key only: ignores inherited properties
+    "total" in order && // repeated so TypeScript narrows `order.total`
+    typeof order.total === "number" &&
+    order.total > 0
+  ) {
+    return order.total // number
+  }
+  return undefined
+}
+```
+
+After:
+
+```ts
+import { affirm } from "@frankmeza/affirm"
+
+function getTotal(order: unknown): number | undefined {
+  if (
+    // `order` is a non-null object with an own key `total`,
+    // and `total` is a number greater than 0.
+    affirm(order, {
+      shape: {
+        total: { isType: "number", isPositive: true },
+      },
+    })
+  ) {
+    return order.total // number
+  }
+  return undefined
 }
 ```
 
@@ -46,15 +75,17 @@ affirm.assert(value, params, message?)  // throws AffirmError on failure; narrow
 
 ```ts
 // Present, non-empty string
-affirm(name, { isType: 'string', isBlank: false })
+affirm(name, { isType: "string", isBlank: false })
 
 // Enum
-affirm(status, { isOneOf: ['draft', 'published', 'archived'] })
+affirm(status, { isOneOf: ["draft", "published", "archived"] })
 
 // Array of objects
 affirm(order.items, {
   isNotEmpty: true,
-  everyItem: { shape: { sku: { isBlank: false }, qty: { isInteger: true, isAtLeast: 1 } } },
+  everyItem: {
+    shape: { sku: { isBlank: false }, qty: { isInteger: true, isAtLeast: 1 } },
+  },
 })
 
 // OR
@@ -64,7 +95,11 @@ affirm(input, { anyOf: [{ isNullish: true }, { isEmpty: true }] })
 affirm(body, { isType: OrderSchema })
 
 // Config at startup: throw with a clear message
-affirm.assert(env.PORT, { isType: 'string', matches: /^\d+$/ }, 'PORT must be numeric')
+affirm.assert(
+  env.PORT,
+  { isType: "string", matches: /^\d+$/ },
+  "PORT must be numeric",
+)
 
 // Explain why a request body failed
 const report = affirm.explain(body, { shape: { email: { matches: /@/ } } })
@@ -73,35 +108,35 @@ if (!report.ok) return badRequest(report.failures.map((f) => f.reason))
 
 Keys combine with AND, an omitted or `undefined` key is skipped, and there's no coercion: `isGreaterThan: 5` fails on `'10'`. Mistakes in the params themselves, such as an unknown key or an empty `{}`, throw a `TypeError` with a "did you mean" hint, so they can't pass silently.
 
-| Group | Keys |
-| --- | --- |
-| Equality | `is`, `isNot`, `isOneOf`, `isNotOneOf`, `isDeepEqual` |
-| Nullish | `isNull`, `isUndefined`, `isNullish`, `isDefined`, `isPresent`, `isTruthy`, `isFalsy` |
+| Group        | Keys                                                                                                                      |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| Equality     | `is`, `isNot`, `isOneOf`, `isNotOneOf`, `isDeepEqual`                                                                     |
+| Nullish      | `isNull`, `isUndefined`, `isNullish`, `isDefined`, `isPresent`, `isTruthy`, `isFalsy`                                     |
 | Runtime type | `isType`, `isArray`, `isPlainObject`, `isFunction`, `isInstanceOf`, `isValidDate`, `isInteger`, `isFiniteNumber`, `isNaN` |
-| Size | `isEmpty`, `isNotEmpty`, `isBlank`, `hasLength`, `hasMinLength`, `hasMaxLength` |
-| Numbers | `isGreaterThan`, `isAtLeast`, `isLessThan`, `isAtMost`, `isBetween`, `isPositive`, `isNegative`, `isMultipleOf` |
-| Strings | `startsWith`, `endsWith`, `includes`, `matches` |
-| Objects | `shape`, `hasKey`, `hasKeys`, `hasAnyKey`, `hasOnlyKeys`, `hasPath` |
-| Arrays | `contains`, `containsAll`, `containsAny`, `everyItem`, `someItem` |
-| Composition | `not`, `anyOf`, `satisfies` |
+| Size         | `isEmpty`, `isNotEmpty`, `isBlank`, `hasLength`, `hasMinLength`, `hasMaxLength`                                           |
+| Numbers      | `isGreaterThan`, `isAtLeast`, `isLessThan`, `isAtMost`, `isBetween`, `isPositive`, `isNegative`, `isMultipleOf`           |
+| Strings      | `startsWith`, `endsWith`, `includes`, `matches`                                                                           |
+| Objects      | `shape`, `hasKey`, `hasKeys`, `hasAnyKey`, `hasOnlyKeys`, `hasPath`                                                       |
+| Arrays       | `contains`, `containsAll`, `containsAny`, `everyItem`, `someItem`                                                         |
+| Composition  | `not`, `anyOf`, `satisfies`                                                                                               |
 
 ## ESLint plugin
 
 ```js
 // eslint.config.js
-import affirm from '@frankmeza/affirm/eslint'
+import affirm from "@frankmeza/affirm/eslint"
 
 export default [
   affirm.configs.recommended,
-  { settings: { affirm: { guards: '^isValid' } } },
+  { settings: { affirm: { guards: "^isValid" } } },
 ]
 ```
 
-| Rule | Catches |
-| --- | --- |
+| Rule                       | Catches                                                                                                                                                                                                                |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `affirm/no-negated-affirm` | `!affirm(…)` and negated guards. `affirm` is an AND of narrow checks, so its negation only means "something failed", which is too broad to act on. Use `affirm.assert`, `affirm.explain`, or a positive check instead. |
-| `affirm/guard-naming` | Guards built on `affirm` that don't follow the `guards` naming pattern, which is how negated guards are caught across files. |
-| `affirm/const-params` | Params stored in a variable without `as const`, which lose their literal types before `affirm` sees them. Autofixable. |
+| `affirm/guard-naming`      | Guards built on `affirm` that don't follow the `guards` naming pattern, which is how negated guards are caught across files.                                                                                           |
+| `affirm/const-params`      | Params stored in a variable without `as const`, which lose their literal types before `affirm` sees them. Autofixable.                                                                                                 |
 
 Requires ESLint 9 or 10 with a flat config. `eslint` is an optional peer dependency.
 

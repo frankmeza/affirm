@@ -1,5 +1,5 @@
 import type { Rule } from 'eslint'
-import { carrier, functionName, guardPatternOf, isAffirmCall, sourcesOf, wrapperOf, type Node } from './shared'
+import { carrier, functionName, guardPatternOf, isAffirmCall, sourcesOf, wrapperOf, type Node } from './shared.js'
 
 // Design D8, cross-file part. ESLint checks one file at a time, so `no-negated-affirm` can't tell
 // that an imported `isValidOrder` returns affirm(…). This rule makes the name carry that fact:

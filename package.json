@@ -29,12 +29,14 @@
     }
   },
   "scripts": {
-    "build": "pnpm run typecheck && vite build && tsc -p tsconfig.build.json",
+    "build": "npm run typecheck && vite build && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:types:ts59": "pnpm run build && node node_modules/typescript-5.9/bin/tsc --noEmit -p tsconfig.json && node node_modules/typescript-5.9/bin/tsc -p tsconfig.dts.json",
-    "test:eslint9": "vitest run --config vitest.eslint9.config.ts"
+    "test:types:ts59": "npm run build && node node_modules/typescript-5.9/bin/tsc --noEmit -p tsconfig.json && node node_modules/typescript-5.9/bin/tsc -p tsconfig.dts.json",
+    "test:eslint9": "vitest run --config vitest.eslint9.config.ts",
+    "test:types:consumer": "tsc -p test/fixtures/consumer-nodenext && node node_modules/typescript-5.9/bin/tsc -p test/fixtures/consumer-nodenext",
+    "prepare": "npm ci --prefix test/fixtures/ts-parser --no-audit --no-fund"
   },
   "peerDependencies": {
     "eslint": ">=9",
@@ -49,7 +51,6 @@
     }
   },
   "devDependencies": {
-    "affirm-test-ts-parser": "file:test/fixtures/ts-parser",
     "eslint": "^10.15.0",
     "eslint-9": "npm:eslint@^9.39.5",
     "typescript": "~7.0.2",

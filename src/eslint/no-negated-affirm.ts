@@ -16,7 +16,7 @@ import {
   usageText,
   wrapperOf,
   type Node,
-} from './shared'
+} from './shared.js'
 
 // Design D8: `affirm(value, params)` is an AND of narrow checks, so its negation means "some
 // check failed, for some reason", which is too broad to build on. This rule forbids negating it.

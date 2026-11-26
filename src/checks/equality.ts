@@ -1,7 +1,7 @@
-import { anyParam, arrayParam, leaf, Phase, type CheckGroup } from '../core/check-def'
-import { formatList, formatParam } from '../core/describe'
-import { deepEqual } from '../core/util/deep-equal'
-import type { EqualityParams } from '../types/equality'
+import { anyParam, arrayParam, leaf, Phase, type CheckGroup } from '../core/check-def.js'
+import { formatList, formatParam } from '../core/describe.js'
+import { deepEqual } from '../core/util/deep-equal.js'
+import type { EqualityParams } from '../types/equality.js'
 
 export const equalityChecks = {
   is: leaf<unknown>({

@@ -1,5 +1,5 @@
 // Boolean keys: `true` asserts, `false` asserts the negation (D1).
-import type { BoolInfo, Exact, ParamOf, Refine } from './narrowing'
+import type { BoolInfo, Exact, ParamOf, Refine } from './narrowing.js'
 
 export interface NullishParams {
   /**

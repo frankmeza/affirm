@@ -1,7 +1,7 @@
 // Value must be an array. Membership uses SameValueZero (NaN matches NaN).
-import type { NarrowNested } from './affirmed'
-import type { ParamInfo, ParamOf, Refine } from './narrowing'
-import type { AffirmParams } from './params'
+import type { NarrowNested } from './affirmed.js'
+import type { ParamInfo, ParamOf, Refine } from './narrowing.js'
+import type { AffirmParams } from './params.js'
 
 export interface ArrayParams {
   /**

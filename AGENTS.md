@@ -2,13 +2,36 @@
 
 `affirm(value, params)` replaces compound data checks with one object of named checks. It returns a boolean and narrows `value`'s type.
 
-```ts
-// instead of
-if (order && typeof order === 'object' && 'total' in order && typeof order.total === 'number' && order.total > 0) { … }
+Instead of:
 
-// write
-if (affirm(order, { hasKey: 'total', shape: { total: { isType: 'number', isPositive: true } } })) {
-  order.total // number
+```ts
+function getTotal(order: unknown): number | undefined {
+  if (
+    typeof order === 'object' &&
+    order !== null &&
+    Object.hasOwn(order, 'total') && // own key only: ignores inherited properties
+    'total' in order && // repeated so TypeScript narrows `order.total`
+    typeof order.total === 'number' &&
+    order.total > 0
+  ) {
+    return order.total // number
+  }
+  return undefined
+}
+```
+
+Write:
+
+```ts
+import { affirm } from '@frankmeza/affirm'
+
+function getTotal(order: unknown): number | undefined {
+  // `order` is a non-null object with an own key `total`,
+  // and `total` is a number greater than 0.
+  if (affirm(order, { shape: { total: { isType: 'number', isPositive: true } } })) {
+    return order.total // number
+  }
+  return undefined
 }
 ```
 

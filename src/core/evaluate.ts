@@ -1,7 +1,7 @@
-import type { AffirmParams } from '../types/params'
-import type { CheckDef, EvalContext, Mode } from './check-def'
-import { checks, isCheckKey, rankOf, type CheckKey } from './registry'
-import type { AffirmFailure } from './report'
+import type { AffirmParams } from '../types/params.js'
+import type { CheckDef, EvalContext, Mode } from './check-def.js'
+import { checks, isCheckKey, rankOf, type CheckKey } from './registry.js'
+import type { AffirmFailure } from './report.js'
 
 /**
  * Runs already-validated params against a value in canonical key order (design §4 rule 7).

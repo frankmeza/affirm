@@ -1,7 +1,7 @@
-import { leaf, Phase, stringParam, type CheckGroup } from '../core/check-def'
-import { formatParam } from '../core/describe'
-import { isString } from '../core/util/kind'
-import type { StringParams } from '../types/strings'
+import { leaf, Phase, stringParam, type CheckGroup } from '../core/check-def.js'
+import { formatParam } from '../core/describe.js'
+import { isString } from '../core/util/kind.js'
+import type { StringParams } from '../types/strings.js'
 
 const MAX_REGEX_SHOWN = 40
 

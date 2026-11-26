@@ -1,4 +1,4 @@
-import type { Exact, IsLiteral, ParamInfo, ParamOf, Refine } from './narrowing'
+import type { Exact, IsLiteral, ParamInfo, ParamOf, Refine } from './narrowing.js'
 
 export interface EqualityParams {
   /**

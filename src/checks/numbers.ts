@@ -1,7 +1,7 @@
-import { booleanLeaf, leaf, numberParam, Phase, type CheckDef, type CheckGroup } from '../core/check-def'
-import { formatParam } from '../core/describe'
-import { isNumberNotNaN } from '../core/util/kind'
-import type { NumberParams } from '../types/numbers'
+import { booleanLeaf, leaf, numberParam, Phase, type CheckDef, type CheckGroup } from '../core/check-def.js'
+import { formatParam } from '../core/describe.js'
+import { isNumberNotNaN } from '../core/util/kind.js'
+import type { NumberParams } from '../types/numbers.js'
 
 const NUMBER = 'a number (not NaN)'
 

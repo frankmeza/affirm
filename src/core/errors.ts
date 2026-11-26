@@ -1,4 +1,4 @@
-import type { AffirmReport } from './report'
+import type { AffirmReport } from './report.js'
 
 const MAX_REASONS = 3
 

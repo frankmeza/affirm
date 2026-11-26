@@ -12,7 +12,7 @@ The package is ESM-only and is not published. Build it, then depend on it locall
 
 ```sh
 # in the affirm repo
-pnpm build
+npm run build
 ```
 
 ```jsonc

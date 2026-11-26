@@ -23,5 +23,7 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src", "test"]
+  "include": ["src", "test"],
+  // Typechecked against the built package by `test:types:consumer`, not with the sources.
+  "exclude": ["test/fixtures/consumer-nodenext"]
 }

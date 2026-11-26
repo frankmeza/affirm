@@ -1,5 +1,5 @@
 // Value must be a string.
-import type { ParamInfo, ParamOf, Refine } from './narrowing'
+import type { ParamInfo, ParamOf, Refine } from './narrowing.js'
 
 export interface StringParams {
   /**
